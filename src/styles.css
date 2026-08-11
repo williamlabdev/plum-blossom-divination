@@ -1,0 +1,263 @@
+/* 梅花易數 · 六爻排盤 — 水墨梅花風格 */
+:root {
+  --bg: #f7f4ee;
+  --paper: #fffdf8;
+  --ink: #2b2620;
+  --ink-soft: #6b6257;
+  --line: #d9d2c4;
+  --accent: #9d2933; /* 梅紅 */
+  --accent-soft: #f3e2e0;
+  --gold: #8a6d3b;
+  --jade: #2f6e5a;
+  --blue: #3a5f8a;
+  --shadow: 0 1px 3px rgba(43, 38, 32, 0.08), 0 4px 16px rgba(43, 38, 32, 0.06);
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191612;
+    --paper: #211d18;
+    --ink: #e8e0d2;
+    --ink-soft: #a2988a;
+    --line: #3a342c;
+    --accent: #d4525e;
+    --accent-soft: #3a2426;
+    --gold: #c2a165;
+    --jade: #6aa88f;
+    --blue: #7da3cc;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Serif TC", "Songti TC", "PMingLiU", "Source Han Serif TC", serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { max-width: 720px; margin: 0 auto; padding: 16px 14px 60px; }
+
+.app-header { text-align: center; padding: 18px 0 6px; }
+.app-header h1 {
+  font-size: 1.5rem; letter-spacing: 0.35em; margin: 0; font-weight: 700;
+}
+.app-header h1 .plum { color: var(--accent); }
+.app-header .sub { color: var(--ink-soft); font-size: 0.8rem; letter-spacing: 0.2em; margin-top: 4px; }
+
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin: 14px 0;
+}
+
+.card h2 {
+  font-size: 0.95rem; margin: 0 0 10px; letter-spacing: 0.15em;
+  color: var(--accent); font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.card h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+label.field { display: block; font-size: 0.85rem; color: var(--ink-soft); margin: 10px 0 4px; }
+
+input[type="text"], input[type="number"], input[type="datetime-local"], select {
+  width: 100%; padding: 10px 12px; font-size: 1rem;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font-family: inherit;
+}
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 999px; padding: 7px 14px; font-size: 0.88rem; cursor: pointer;
+  font-family: inherit; transition: all 0.15s;
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.seg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 6px; }
+.seg button {
+  flex: 1; padding: 9px 0; border: none; background: transparent; color: var(--ink);
+  font-family: inherit; font-size: 0.9rem; cursor: pointer;
+}
+.seg button.active { background: var(--accent); color: #fff; }
+
+.num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tri-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+.cast-btn {
+  width: 100%; margin-top: 14px; padding: 13px 0; font-size: 1.05rem; letter-spacing: 0.4em;
+  background: var(--accent); color: #fff; border: none; border-radius: 12px;
+  cursor: pointer; font-family: inherit; font-weight: 700;
+}
+.cast-btn:active { transform: scale(0.985); }
+
+.check-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.85rem; color: var(--ink-soft); }
+
+.dice-btn {
+  margin-top: 10px; padding: 9px 16px; font-family: inherit; font-size: 0.9rem;
+  border: 1px dashed var(--gold); background: transparent; color: var(--gold);
+  border-radius: 10px; cursor: pointer;
+}
+.dice-btn:active { transform: scale(0.97); }
+
+.random-hint {
+  margin-top: 10px; padding: 12px; font-size: 0.88rem; line-height: 1.8;
+  color: var(--ink-soft); background: var(--bg); border-radius: 10px;
+  border: 1px dashed var(--line); text-align: center;
+}
+
+/* ── 卦象展示 ── */
+.gua-trio { display: flex; justify-content: space-around; align-items: flex-start; gap: 6px; }
+.gua-box { text-align: center; flex: 1; }
+.gua-box .glabel { font-size: 0.75rem; color: var(--ink-soft); letter-spacing: 0.2em; }
+.gua-box .gname { font-size: 0.95rem; margin-top: 6px; font-weight: 700; }
+.gua-box.bian .gname { color: var(--accent); }
+.gua-lines { display: inline-flex; flex-direction: column-reverse; gap: 5px; margin-top: 8px; }
+.yao { width: 64px; height: 9px; display: flex; gap: 8px; justify-content: center; position: relative; }
+.yao .bar { background: var(--ink); height: 100%; border-radius: 2px; flex: 1; }
+.yao.dong .bar { background: var(--accent); }
+.yao .mark {
+  position: absolute; right: -18px; top: -3px; font-size: 0.7rem; color: var(--accent); font-weight: 700;
+}
+.gua-arrow { align-self: center; color: var(--ink-soft); font-size: 1.1rem; padding-top: 30px; }
+
+.time-info { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.8; text-align: center; }
+.time-info .gz { color: var(--ink); font-weight: 700; letter-spacing: 0.08em; }
+.time-info .kong { color: var(--accent); }
+
+/* ── 判語摘要卡 ── */
+.summary-card { border-color: var(--accent); border-width: 1.5px; }
+.summary-line { font-size: 0.9rem; line-height: 1.8; margin-top: 4px; }
+.summary-sub { font-size: 0.8rem; color: var(--ink-soft); margin-top: 8px; line-height: 1.7; }
+
+/* ── 排盤表 ── */
+.pan-hint { font-size: 0.72rem; color: var(--ink-soft); text-align: right; margin-bottom: 6px; }
+.pan-outer { position: relative; }
+.pan-outer::after {
+  content: ""; position: absolute; top: 24px; right: 0; bottom: 0; width: 24px;
+  background: linear-gradient(to left, var(--paper), transparent); pointer-events: none;
+}
+.pan-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.pan { border-collapse: collapse; width: 100%; min-width: 540px; font-size: 0.82rem; }
+table.pan th {
+  font-weight: 400; color: var(--ink-soft); font-size: 0.72rem; letter-spacing: 0.1em;
+  padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+table.pan td { padding: 7px 6px; text-align: center; white-space: nowrap; border-bottom: 1px dashed var(--line); }
+table.pan tr:last-child td { border-bottom: none; }
+.t-shou { color: var(--blue); }
+.t-qin { font-weight: 700; }
+.t-shiying { color: var(--accent); font-weight: 700; }
+.t-dong { color: var(--accent); font-weight: 700; }
+.t-kong { color: var(--gold); font-size: 0.72rem; }
+.t-po { color: var(--accent); font-size: 0.72rem; }
+.t-fu { color: var(--jade); font-size: 0.8rem; }
+.t-bian { color: var(--accent); }
+.yao-cell { display: inline-flex; gap: 5px; vertical-align: middle; width: 44px; height: 8px; }
+.yao-cell .bar { background: var(--ink); flex: 1; border-radius: 2px; }
+.yao-cell.is-dong .bar { background: var(--accent); }
+
+/* ── 神煞 ── */
+.shensha-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 0.82rem; }
+.ss-item { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 7px 4px; text-align: center; }
+.ss-item .ss-name { color: var(--ink-soft); font-size: 0.7rem; display: block; margin-bottom: 2px; }
+.ss-item .ss-val { font-weight: 700; }
+
+.wuxing-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px; font-size: 0.8rem; }
+.wx-item { text-align: center; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 7px 2px; }
+.wx-item .el { font-weight: 700; font-size: 0.95rem; }
+.wx-item .st { color: var(--ink-soft); font-size: 0.72rem; display: block; margin-top: 2px; }
+.wx-item.wang .el { color: var(--accent); }
+.wx-item.xiang .el { color: var(--jade); }
+
+/* ── 解析 ── */
+.verdict-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.verdict {
+  font-size: 1.6rem; font-weight: 900; letter-spacing: 0.1em;
+  padding: 8px 18px; border-radius: 12px; color: #fff; background: var(--ink-soft);
+}
+.verdict.level-大吉 { background: var(--accent); }
+.verdict.level-偏吉 { background: var(--jade); }
+.verdict.level-平 { background: var(--gold); }
+.verdict.level-偏凶 { background: #7a5c8a; }
+.verdict.level-大凶 { background: #3d3a36; }
+.verdict-note { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.6; }
+
+.section { margin: 10px 0; line-height: 1.85; font-size: 0.92rem; }
+.section .sec-title {
+  display: inline-block; background: var(--accent-soft); color: var(--accent);
+  font-size: 0.75rem; border-radius: 6px; padding: 2px 8px; margin-right: 8px; letter-spacing: 0.1em;
+}
+
+.classic { background: var(--bg); border-left: 3px solid var(--gold); border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+.classic .c-name { color: var(--gold); font-size: 0.78rem; letter-spacing: 0.1em; }
+.classic .c-text { margin-top: 3px; line-height: 1.8; font-size: 0.92rem; }
+
+.tabs { display: flex; gap: 8px; margin: 16px 0 0; }
+.tabs button {
+  flex: 1; padding: 10px 0; font-family: inherit; font-size: 0.92rem; letter-spacing: 0.2em;
+  border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 12px; cursor: pointer;
+}
+.tabs button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+.history-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 10px 4px; border-bottom: 1px dashed var(--line); cursor: pointer; font-size: 0.88rem;
+}
+.history-item > div:first-child { min-width: 0; }
+.history-item > div:first-child > div:first-child {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-item:last-child { border-bottom: none; }
+.history-item .h-time { color: var(--ink-soft); font-size: 0.75rem; }
+.history-item .h-verdict { color: var(--accent); font-weight: 700; white-space: nowrap; }
+.history-empty { color: var(--ink-soft); font-size: 0.85rem; text-align: center; padding: 20px 0; }
+.clear-btn { background: none; border: none; color: var(--ink-soft); font-size: 0.78rem; cursor: pointer; font-family: inherit; text-decoration: underline; }
+
+.footnote { text-align: center; color: var(--ink-soft); font-size: 0.72rem; margin-top: 30px; line-height: 1.8; }
+
+/* ── 術語解說 ── */
+.term { border-bottom: 1px dotted var(--gold); cursor: pointer; }
+.term:active { opacity: 0.6; }
+
+.glossary-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 50;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.glossary-sheet {
+  background: var(--paper); border-radius: 18px 18px 0 0; padding: 20px 20px 28px;
+  width: 100%; max-width: 720px; box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
+  animation: sheet-up 0.18s ease-out;
+}
+@keyframes sheet-up { from { transform: translateY(30%); opacity: 0.5; } to { transform: none; opacity: 1; } }
+.glossary-title {
+  font-size: 1.05rem; font-weight: 700; color: var(--accent); letter-spacing: 0.15em; margin-bottom: 8px;
+}
+.glossary-text { font-size: 0.92rem; line-height: 1.9; }
+.glossary-close {
+  margin-top: 16px; width: 100%; padding: 10px 0; font-family: inherit; font-size: 0.92rem;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px; cursor: pointer;
+}
+
+/* ── 分享 ── */
+.share-btn {
+  margin-top: 12px; padding: 8px 18px; font-family: inherit; font-size: 0.88rem; letter-spacing: 0.15em;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 999px; cursor: pointer;
+}
+.share-btn:active { background: var(--accent-soft); }
+.share-msg { margin-left: 10px; font-size: 0.8rem; color: var(--jade); }
+
+/* ── 紀錄刪除 ── */
+.h-delete {
+  border: none; background: transparent; color: var(--ink-soft); font-size: 0.9rem;
+  cursor: pointer; padding: 6px 8px; border-radius: 8px; flex-shrink: 0; font-family: inherit;
+}
+.h-delete:active { background: var(--accent-soft); color: var(--accent); }
