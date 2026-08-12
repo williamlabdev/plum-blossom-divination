@@ -83,6 +83,9 @@ export function findQuestionType(key: string): QuestionType | undefined {
 export interface ReportSection {
   title: string
   text: string
+  /** true 表示此段只描述事情的性質樣貌、完全不影響吉凶計分。
+   *  介面據此與決定吉凶的段落做視覺區分，免得讀者以為每段份量相同。 */
+  descriptive?: boolean
 }
 
 export interface LiuyaoReport {
@@ -234,8 +237,9 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   const yWang = wangShuaiOf(yEl, mEl)
   const yYouQi = yWang === '旺' || yWang === '相' // 月令有氣：旺相為有氣，休囚死為無氣
   const yRiChong = yBranch === chong(ct.day.branch) // 用神是否被日辰所沖
+  const yYuePo = yBranch === chong(ct.month.branch) // 用神是否月破
   let mText: string
-  if (yBranch === chong(ct.month.branch)) {
+  if (yYuePo) {
     mText = `用神${yBranch}${yEl}逢月建${ct.month.branch}沖，是為「月破」，大受挫傷`
     score -= 3
   } else if (mRel === '我生') {
@@ -264,8 +268,13 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     // 占病逢沖不論暗動日破，改由下方「占病」段落依近病久病反向斷之
     dText = `日辰${ct.day.branch}沖用神，占病逢沖另有專斷（詳見占病一段）`
   } else if (yRiChong) {
-    // 旺相之爻逢沖為「暗動」、休囚無氣之爻逢沖為「日破」；旬空逢沖則為「沖空」另論
-    if (yYouQi && !yKong) {
+    // 旺相之爻逢沖為「暗動」、休囚無氣之爻逢沖為「日破」；旬空逢沖則為「沖空」另論。
+    // 但已判月破者不可再論暗動——同一爻不能既「大受挫傷」又「當令有氣」，
+    // 破而又沖是雪上加霜，非暗中萌動之吉象。
+    if (yYuePo) {
+      dText = `日辰${ct.day.branch}復沖用神，月破之爻再逢日沖，破而又沖、傷上加傷，非暗動之象`
+      score -= 1
+    } else if (yYouQi && !yKong) {
       dText = `日辰${ct.day.branch}沖用神，用神當令有氣（${yWang}）而逢沖，是為「暗動」，事已暗中萌動`
       score += 0.5
     } else if (yKong) {
@@ -365,7 +374,13 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     // 官鬼為病神（用神本身即官鬼者除外，如妻占夫病，此時官鬼是人不是病）
     if (qt.yongShen !== '官鬼') {
       const guiLine = pickByLiuqin(chart, '官鬼')
-      if (!guiLine) {
+      // 自占病而官鬼持世時，人與病本是同一爻——上方「官鬼持世」已就此爻計分。
+      // 注意 pickByLiuqin 優先取動爻／旺相而非世爻，卦中若另有官鬼會被選中，
+      // 於是同一個「病」被拆到兩爻各算一次，故改以用神自身六親判斷。
+      const guiIsTarget = !!guiLine && (guiLine.pos === target.pos || target.liuqin === '官鬼')
+      if (guiIsTarget) {
+        bParts.push('病神官鬼即是用神本身，人與病同居一爻，吉凶已併於上文論之，不另計')
+      } else if (!guiLine) {
         bParts.push('卦中官鬼不上卦，病無形象可尋，其病輕淺易解')
         score += 1
       } else if (guiLine.isXunKong) {
@@ -383,7 +398,12 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     // 子孫為醫藥解神（用神本身即子孫者除外，如占子病）
     if (qt.yongShen !== '子孫') {
       const ziLine = pickByLiuqin(chart, '子孫')
-      if (!ziLine) {
+      // 同理：自占病而子孫持世時，醫藥與用神同爻，避免同一爻重複結算
+      const ziIsTarget = !!ziLine && (ziLine.pos === target.pos || target.liuqin === '子孫')
+      if (ziIsTarget) {
+        bParts.push('子孫持世而子孫即用神本身，解神與己身同居一爻，本主不藥而癒之象')
+        score += 1
+      } else if (!ziLine) {
         bParts.push('子孫不上卦，醫藥無門，難遇良醫')
         score -= 1
       } else if (ziLine.shiYing === '世') {
@@ -455,16 +475,23 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const jiLine = pickByLiuqin(chart, jiCat)
     const chouLine = pickByLiuqin(chart, chouCat)
 
+    // 職責分離（避免重複計分）：
+    //   本段只論原神／忌神的「存在與強弱」——是否上卦、是否當令、是否落空。
+    //   若該爻正是動爻，其「發動對用神的生剋作用」一律交由下方「動爻變爻」段獨佔計分，
+    //   本段僅作敘述、不計分。否則同一個爻會在兩段各扣（加）一次，合計可達 3.5 分。
+    //   （本引擎為單動爻模型，故原神／忌神／仇神至多只有一個會是動爻。）
     const parts: string[] = []
     if (yuanLine) {
-      const strong = yuanLine.isDong || yuanLine.wangShuai === '旺' || yuanLine.wangShuai === '相'
-      if (strong && !yuanLine.isXunKong) {
-        parts.push(`原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）${yuanLine.isDong ? '發動來生，源頭活水，後續有力' : '得令而旺，助力扎實'}`)
-        score += yuanLine.isDong ? 1.5 : 1
+      const yuanDesc = `原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）`
+      if (yuanLine.isDong) {
+        parts.push(`${yuanDesc}正是本卦動爻，發動來生用神，源頭活水（其力道詳見「動爻變爻」一段）`)
       } else if (yuanLine.isXunKong) {
         parts.push(`原神${yuanCat}雖現但落旬空，助力暫時虛懸`)
+      } else if (yuanLine.wangShuai === '旺' || yuanLine.wangShuai === '相') {
+        parts.push(`${yuanDesc}得令而旺，助力扎實`)
+        score += 1
       } else {
-        parts.push(`原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）力弱，生扶有限`)
+        parts.push(`${yuanDesc}力弱，生扶有限`)
         score += 0.2
       }
     } else {
@@ -473,18 +500,23 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     }
 
     if (jiLine) {
-      const strong = jiLine.isDong || jiLine.wangShuai === '旺' || jiLine.wangShuai === '相'
-      if (strong && !jiLine.isXunKong) {
-        parts.push(`忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）${jiLine.isDong ? '發動剋用神，事有阻力，慎防破敗' : '得令，暗中牽制用神'}`)
-        score -= jiLine.isDong ? 1.5 : 0.8
-        if (chouLine && (chouLine.isDong || chouLine.wangShuai === '旺' || chouLine.wangShuai === '相')) {
-          parts.push(`且仇神${chouCat}${chouLine.isDong ? '發動' : '得令'}生忌神，其勢更盛，尤須謹慎`)
-          score -= 0.8
-        }
+      const jiDesc = `忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）`
+      const jiActive = jiLine.isDong || ((jiLine.wangShuai === '旺' || jiLine.wangShuai === '相') && !jiLine.isXunKong)
+      if (jiLine.isDong) {
+        parts.push(`${jiDesc}正是本卦動爻，發動剋用神，事有阻力（其力道詳見「動爻變爻」一段）`)
       } else if (jiLine.isXunKong) {
         parts.push(`忌神${jiCat}雖現但落旬空，暫時無力為害`)
+      } else if (jiLine.wangShuai === '旺' || jiLine.wangShuai === '相') {
+        parts.push(`${jiDesc}得令，暗中牽制用神`)
+        score -= 0.8
       } else {
-        parts.push(`忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）力弱，難以妨事`)
+        parts.push(`${jiDesc}力弱，難以妨事`)
+      }
+      // 仇神生忌神是「忌神的後援」，與動爻對用神的直接生剋是不同層次的作用，不構成重複計分
+      if (jiActive && chouLine && chouLine.pos !== jiLine.pos
+        && (chouLine.isDong || chouLine.wangShuai === '旺' || chouLine.wangShuai === '相')) {
+        parts.push(`且仇神${chouCat}${chouLine.isDong ? '發動' : '得令'}生忌神，其勢更盛，尤須謹慎`)
+        score -= 0.8
       }
     }
     sections.push({ title: '原神忌神', text: parts.join('；') + '。' })
@@ -592,6 +624,19 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
         parts.push(`且變爻${dongLine.bian!.sb.branch}落旬空，變化尚落不到實處，須待出空`)
         score -= 0.5
       }
+    } else if (dongLine === target && isFuShen) {
+      // 用神為伏神、而動的是它上面那個飛神爻。伏神本身並未發動——
+      // 飛伏之間的生剋已由「伏神」段計分，此處不可再算一次（否則同一關係扣兩次），
+      // 只論「飛神發動則伏神易出」這個獨立的作用。
+      parts.push(`動的是覆蓋用神的飛神${dongLine.sb.branch}${dongEl}（${dongLine.liuqin}），伏神本身並未發動`)
+      parts.push(`飛神既動，覆蓋鬆脫，伏神較易引拔而出，事有浮上檯面之機（飛伏生剋詳見「伏神」一段）`)
+      score += 0.5
+      const bEl = dongLine.bian!.sb.element
+      const bRel = relation(bEl, dongEl)
+      if (bRel === '我剋') {
+        parts.push(`且飛神化出${dongLine.bian!.sb.branch}${bEl}回頭剋之，飛神自顧不暇，對伏神的壓制隨之鬆動`)
+        score += 0.5
+      }
     } else {
       const rel2 = relation(dongEl, yEl)
       const dongDesc = `${posName[dongLine.pos - 1]}${dongLine.liuqin}${dongLine.sb.branch}${dongEl}發動`
@@ -642,7 +687,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
           : `動爻臨${dongLine.liushou}，另主${LIUSHOU_FLAVOR[dongLine.liushou]}`,
       )
     }
-    sections.push({ title: '六獸取象', text: flavorParts.join('；') + '。' })
+    sections.push({ title: '六獸取象', text: flavorParts.join('；') + '。', descriptive: true })
   }
 
   // 9b. 爻位取象（描述性質，不計分）
@@ -651,7 +696,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     if (dongLine && dongLine.pos !== target.pos) {
       posParts.push(`動爻居${posName[dongLine.pos - 1]}，${LINE_POSITION_IMAGERY[dongLine.pos - 1]}`)
     }
-    sections.push({ title: '爻位取象', text: posParts.join('；') + '。' })
+    sections.push({ title: '爻位取象', text: posParts.join('；') + '。', descriptive: true })
   }
 
   // 10. 世應
@@ -733,15 +778,23 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     if (shenShaParts.length) sections.push({ title: '神煞', text: shenShaParts.join('；') + '。' })
   }
 
+  // 分數取到小數一位後才做門檻比對。
+  // 分數由 0.2／0.3／0.5／0.8／1.5／2.5 這類十進位小數累加而成，二進位下都不精確，
+  // 累加十幾項後會產生 1e-15 級誤差（實測出現過 -3.999999999999999），
+  // 使臨界卦的判語由浮點噪音決定且無法重現。四捨五入到 0.1 消除此問題。
+  const finalScore = Math.round(score * 10) / 10
+
   // 11. 應期
+  // 強弱門檻與下方判語門檻共用同一個界線，否則會出現「判偏吉、應期卻說用神偏弱」的矛盾。
   const heB = he(yBranch)
   const chongB = chong(yBranch)
+  const JI_THRESHOLD = 0.3 // 偏吉起點，亦即「用神有氣」的界線
   let yingQi: string
   if (heBan) {
     yingQi = `用神動而合絆，應期看${chongB}日（沖開合絆，事乃有成）；月份亦同此推。`
   } else if (yKong) {
     yingQi = `用神旬空，應期先看出空：${yBranch}日（值日填實）或${chongB}日（沖空則實）。`
-  } else if (score >= 1) {
+  } else if (finalScore >= JI_THRESHOLD) {
     yingQi = `用神有氣，應期可看${yBranch}日（用神值日）或${heB}日（逢合之期）；月份亦同此推。`
   } else {
     yingQi = `用神偏弱，應期待生扶：${SHENG_REV[yEl]}旺之日（生用神）或${yBranch}值日，急事看${chongB}日沖動。`
@@ -750,16 +803,16 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   // 判語
   // 分級門檻經《增刪卜易》《卜筮正宗》53 則實占案例校準（見 calibration.ts）：
   // 原本「平」帶寬達 ±1.5，導致 53 則中有 14 則被判為平，而古籍實占僅 1 則作平論——
-  // 卦本為決疑而起，模稜兩可的判語沒有意義。收窄平帶後方向命中率由 47.2% 升至 64.2%。
+  // 卦本為決疑而起，模稜兩可的判語沒有意義。
   // 平帶保留 ±0.3，僅供生剋確實勢均力敵者使用。
   let verdict: LiuyaoReport['verdict']
-  if (score >= 4) verdict = '大吉'
-  else if (score >= 0.3) verdict = '偏吉'
-  else if (score > -0.3) verdict = '平'
-  else if (score > -4) verdict = '偏凶'
+  if (finalScore >= 4) verdict = '大吉'
+  else if (finalScore >= JI_THRESHOLD) verdict = '偏吉'
+  else if (finalScore > -JI_THRESHOLD) verdict = '平'
+  else if (finalScore > -4) verdict = '偏凶'
   else verdict = '大凶'
 
-  return { yongShenDesc, yongShenLine: target, isFuShen, score, verdict, sections, yingQi }
+  return { yongShenDesc, yongShenLine: target, isFuShen, score: finalScore, verdict, sections, yingQi }
 }
 
 // 生我者（用神之原神五行）

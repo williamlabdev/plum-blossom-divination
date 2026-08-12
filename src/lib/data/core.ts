@@ -70,11 +70,6 @@ export const SANHE_GROUPS: SanHeGroup[] = [
   { branches: ['寅', '午', '戌'], element: '火' },
   { branches: ['亥', '卯', '未'], element: '木' },
 ]
-// 查某地支所屬的三合組（若有）
-export function sanHeGroupOf(b: Branch): SanHeGroup | undefined {
-  return SANHE_GROUPS.find(g => g.branches.includes(b))
-}
-
 // 五行墓庫（辰戌丑未四墓庫）：木墓未、火土同宮墓戌、金墓丑、水墓辰
 // 與 najia.ts 的長生十二宮（changShengOf）推出的「墓」位一致
 export const MU_BRANCH: Record<Element, Branch> = { 木: '未', 火: '戌', 土: '戌', 金: '丑', 水: '辰' }

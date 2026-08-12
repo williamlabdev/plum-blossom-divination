@@ -1,7 +1,7 @@
 // 曆法模組：包裝 lunar-typescript，輸出占卦所需的干支與農曆資訊
 import { Solar } from 'lunar-typescript'
 import type { Branch, Stem } from './data/core'
-import { BRANCHES, branchIndex } from './data/core'
+import { branchIndex } from './data/core'
 
 export interface GanZhi {
   stem: Stem
@@ -60,6 +60,3 @@ export function getChartTime(date: Date): ChartTime {
   }
 }
 
-export function branchOfIndex(i: number): Branch {
-  return BRANCHES[((i % 12) + 12) % 12]
-}

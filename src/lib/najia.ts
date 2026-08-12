@@ -8,7 +8,6 @@ import type { ZhouyiGua } from './data/zhouyi'
 import { guaByLines } from './data/zhouyi'
 import type { ChartTime } from './calendar'
 import type { Hexagram } from './casting'
-import { hexagramFromLines } from './casting'
 
 // ── 八宮歸屬與世應 ──────────────────────────────
 interface GongInfo {
@@ -233,7 +232,6 @@ export interface NajiaChart {
   benXing: GuaXing // 本卦格局：六沖／六合／無
   bianXing: GuaXing // 變卦格局
   wuXingZhuangTai: { el: Element; wang: WangShuai; cs: ChangSheng }[] // 五行旺衰（月令）與長生（日支）
-  liuQinWuXing: { liuqin: LiuQin; el: Element }[] // 本宮六親五行對照
 }
 
 export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): NajiaChart {
@@ -332,8 +330,6 @@ export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): Naj
     benXing: guaXingOf(ben.lines),
     bianXing: guaXingOf(bianLines),
     wuXingZhuangTai: ELS.map(el => ({ el, wang: wangShuaiOf(el, monthEl), cs: changShengOf(el, ct.day.branch) })),
-    liuQinWuXing: ELS.map(el => ({ liuqin: liuQinOf(info.gongElement, el), el })),
   }
 }
 
-export { hexagramFromLines }

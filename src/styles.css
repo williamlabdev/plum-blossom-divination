@@ -236,6 +236,10 @@ table.pan tr:last-child td { border-bottom: none; }
   background: var(--paper); border-radius: 18px 18px 0 0; padding: 20px 20px 28px;
   width: 100%; max-width: 720px; box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
   animation: sheet-up 0.18s ease-out;
+  /* 使用者放大系統字級（占卜 App 的年齡層偏高，這很常見）時，長條目會超出畫面且捲不到，
+     故限制高度並允許內部捲動；底部再讓開 iOS 主畫面模式的安全區。 */
+  max-height: 85vh; overflow-y: auto;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
 }
 @keyframes sheet-up { from { transform: translateY(30%); opacity: 0.5; } to { transform: none; opacity: 1; } }
 .glossary-title {
@@ -273,3 +277,36 @@ table.pan tr:last-child td { border-bottom: none; }
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
   padding: 7px 10px; margin-top: 2px;
 }
+
+/* 延伸取象（不影響吉凶的描述性段落）預設收合 */
+.extra-block {
+  margin-top: 10px; padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+.extra-block > summary {
+  cursor: pointer; font-size: 12px; color: var(--ink-soft);
+  padding: 4px 0; list-style: none;
+}
+.extra-block > summary::-webkit-details-marker { display: none; }
+.extra-block > summary::before { content: '▸ '; }
+.extra-block[open] > summary::before { content: '▾ '; }
+.extra-block > summary:hover { color: var(--accent); }
+
+/* 提示卡（例如時間起卦同時辰必得同卦） */
+.note-card {
+  font-size: 13px; line-height: 1.7; color: var(--ink-soft);
+  border-left: 3px solid var(--gold);
+}
+
+/* 深色模式讓原生控制項（核取方塊、下拉、日期選擇器）跟隨主題，
+   否則在水墨深色版面上會冒出亮藍色與白底浮層 */
+:root { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; }
+}
+
+/* iOS 加入主畫面後為全螢幕，底部需讓開 Home Indicator */
+.app, body { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* 停用中的分頁需看得出來不能點 */
+.tabs button:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { ChartTime } from './calendar'
 import { getChartTime } from './calendar'
-import { castByNumbers, castByTime, castManual, drawRandom, randomInt } from './casting'
+import { castByNumbers, castByTime, castManual, drawRandom, hexagramFromLines, randomInt } from './casting'
 import type { Branch, Stem } from './data/core'
 import { chouShenOf, jiShenOf, yuanShenOf } from './data/core'
 import { buildNajiaChart, guaXingOf } from './najia'
 import { QUESTION_GROUPS, QUESTION_TYPES, analyzeLiuyao, findQuestionType } from './interpret'
+import { ZHOUYI } from './data/zhouyi'
+import { GLOSSARY } from './glossary'
 
 // 案例一：使用者截圖之星僑排盤（2026-08-11 20:50，搖得水風井、五爻動）
 const T = new Date(2026, 7, 11, 20, 50)
@@ -623,5 +625,145 @@ describe('問題類型細分（依古法六親取用）', () => {
   it('問題類型 key 不得重複', () => {
     const keys = QUESTION_TYPES.map(q => q.key)
     expect(new Set(keys).size).toBe(keys.length)
+  })
+})
+
+// ── v1.8：CTR／Fresh-eyes 審查後的重複計分與矛盾修正（回歸測試）──────────────
+describe('重複計分修正：同一個爻不得在兩個段落各計一次', () => {
+  const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+
+  it('原神即動爻時，原神忌神段只作敘述，計分交由動爻變爻段獨佔', () => {
+    // 坤為地初爻未土兄弟動；問綜合運勢（用神世爻），未土為原神
+    const cast = castManual(8, 8, 1)
+    expect(cast.ben.gua.fullName).toBe('坤為地')
+    const chart = buildNajiaChart(cast.ben, cast.dong, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'general')!)
+    const yj = r.sections.find(s => s.title === '原神忌神')?.text ?? ''
+    const dy = r.sections.find(s => s.title === '動爻變爻')?.text ?? ''
+    if (yj.includes('正是本卦動爻')) {
+      // 敘述仍在，但明確把力道指向動爻變爻段，避免讀者以為算了兩次
+      expect(yj).toContain('詳見「動爻變爻」一段')
+      expect(dy).toContain('動而')
+    }
+    // 修正前的舊措辭（含力道描述）不應再出現在原神忌神段
+    expect(yj).not.toContain('發動來生，源頭活水，後續有力')
+    expect(yj).not.toContain('發動剋用神，事有阻力，慎防破敗')
+  })
+
+  it('用神為伏神而飛神爻發動時，不重複計飛伏生剋，改論飛動則伏易出', () => {
+    // 水風井四爻申金動；問子女（子孫午火不上卦，伏於四爻下）
+    const cast = castManual(6, 5, 4)
+    expect(cast.ben.gua.fullName).toBe('水風井')
+    const chart = buildNajiaChart(cast.ben, cast.dong, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'children')!)
+    expect(r.isFuShen).toBe(true)
+    const dy = r.sections.find(s => s.title === '動爻變爻')?.text ?? ''
+    expect(dy).toContain('伏神本身並未發動')
+    expect(dy).toContain('飛伏生剋詳見「伏神」一段')
+    // 不得再以「動而生／剋用神」的措辭重複計一次飛伏關係
+    expect(dy).not.toContain('動而生用神')
+    expect(dy).not.toContain('動而剋用神')
+  })
+})
+
+describe('自相矛盾修正', () => {
+  it('月破之爻再逢日沖，不得同時宣稱「當令有氣」而論暗動', () => {
+    // 震為雷初爻動、辰月甲辰日：用神戌土既被月建辰沖（月破）、又被日辰辰沖
+    const ct = mkCt('辰', '甲', '辰', ['寅', '卯'])
+    const cast = castManual(4, 4, 1)
+    const chart = buildNajiaChart(cast.ben, cast.dong, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'general')!)
+    const md = r.sections.find(s => s.title === '月建日辰')?.text ?? ''
+    expect(md).toContain('月破')
+    expect(md).toContain('破而又沖')
+    expect(md).not.toContain('當令有氣')
+    expect(md).not.toContain('是為「暗動」') // 「非暗動之象」是允許的措辭，斷定為暗動才是錯的
+  })
+
+  it('應期的強弱門檻與判語門檻一致，不得判偏吉卻說用神偏弱', () => {
+    const ct2 = mkCt('申', '甲', '子', ['戌', '亥'])
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct2)
+        for (const qt of QUESTION_TYPES) {
+          const r = analyzeLiuyao(chart, ct2, qt)
+          if (r.verdict === '偏吉' || r.verdict === '大吉') {
+            expect(r.yingQi).not.toContain('用神偏弱')
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('浮點誤差：判語不得由累加噪音決定', () => {
+  it('所有卦象的分數都是 0.1 的整數倍（門檻比對前已取整）', () => {
+    const ct3 = mkCt('申', '甲', '子', ['戌', '亥'])
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct3)
+        for (const qt of QUESTION_TYPES) {
+          const s = analyzeLiuyao(chart, ct3, qt).score
+          expect(Math.abs(s * 10 - Math.round(s * 10))).toBeLessThan(1e-9)
+        }
+      }
+    }
+  })
+})
+
+// ── 資料完整性與術語涵蓋（審查指出的測試盲區）──────────────
+describe('卦爻辭資料完整性', () => {
+  it('六十四卦齊備、卦名唯一、每卦六爻六條爻辭', () => {
+    expect(ZHOUYI).toHaveLength(64)
+    expect(new Set(ZHOUYI.map(g => g.fullName)).size).toBe(64)
+    expect(new Set(ZHOUYI.map(g => g.lines.join(''))).size).toBe(64)
+    for (const g of ZHOUYI) {
+      expect(g.lines).toHaveLength(6)
+      expect(g.lines.every(v => v === 0 || v === 1)).toBe(true)
+      expect(g.guaci).toBeTruthy()
+      // 動爻卡以 yaoci[dong-1] 取用，缺一條就會靜默不顯示
+      expect(g.yaoci.length).toBeGreaterThanOrEqual(6)
+      for (let i = 0; i < 6; i++) {
+        expect(g.yaoci[i]?.text, `${g.fullName} 第${i + 1}爻`).toBeTruthy()
+      }
+    }
+  })
+
+  it('六十四種爻象都能查到對應卦，起卦不會拋錯', () => {
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      expect(() => hexagramFromLines(lines)).not.toThrow()
+    }
+  })
+})
+
+describe('術語解說涵蓋率（Term 查無鍵時會靜默降級，需測試守住）', () => {
+  it('斷卦報告的每個段落標題都必須有對應的辭典條目', () => {
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    const missing = new Set<string>()
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+        for (const qt of QUESTION_TYPES) {
+          for (const s of analyzeLiuyao(chart, ct, qt).sections) {
+            if (!GLOSSARY[s.title]) missing.add(s.title)
+          }
+        }
+      }
+    }
+    expect([...missing]).toEqual([])
+  })
+
+  it('辭典條目不得為空字串', () => {
+    for (const [k, v] of Object.entries(GLOSSARY)) {
+      expect(v.length, `術語「${k}」的解說過於簡略`).toBeGreaterThan(8)
+    }
   })
 })

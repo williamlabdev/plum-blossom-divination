@@ -19,6 +19,10 @@ export interface MeihuaAnalysis {
   huLower: { rel: string; luck: number }
   bianYong: Trigram // 變卦中用卦所變之卦
   bianRel: { rel: string; luck: number }
+  /** 綜合分數（已取到小數一位）。對外暴露是為了讓分級門檻可被測試與比對——
+   *  先前未暴露，導致此處的「平」帶寬長期停在 ±1.5（六爻端已依古籍案例校準為 ±0.3）
+   *  卻無人察覺，而兩者的五級標籤是並排顯示給使用者看的。 */
+  score: number
   level: MeihuaLevel
   summary: string
 }
@@ -65,18 +69,23 @@ export function analyzeMeihua(cast: CastResult, ct: ChartTime): MeihuaAnalysis {
   const processText = huLuck >= 2 ? '過程有助力' : huLuck <= -2 ? '過程多波折' : '過程平平'
   const endText = bianRel.luck >= 1 ? '結局向好' : bianRel.luck <= -1 ? '結局須防變數' : '結局平穩'
 
+  // 分級門檻與六爻斷卦（interpret.ts）刻意保持同一套刻度，兩者才能並排比較。
+  // 原本此處「平」帶寬為 ±1.5，正是 interpret.ts 依 53 則古籍案例校準後否定掉的設定；
+  // 兩套系統若用同一組五級標籤卻各有各的刻度，使用者看到「偏凶 vs 大吉」會無從判斷。
+  // 分數同樣取到小數一位再比對，避免浮點累加噪音決定判語。
+  const finalScore = Math.round(score * 10) / 10
   let level: MeihuaLevel
   let verdictText: string
-  if (score >= 4) {
+  if (finalScore >= 4) {
     level = '大吉'
     verdictText = '整體大吉，可放手進行'
-  } else if (score >= 1.5) {
+  } else if (finalScore >= 0.3) {
     level = '偏吉'
     verdictText = '整體偏吉，終局可成'
-  } else if (score >= -1.5) {
+  } else if (finalScore > -0.3) {
     level = '平'
     verdictText = '吉凶參半，成敗繫於自身努力與時機'
-  } else if (score >= -4) {
+  } else if (finalScore > -4) {
     level = '偏凶'
     verdictText = '整體偏凶，宜守成緩圖，不宜強求'
   } else {
@@ -86,6 +95,7 @@ export function analyzeMeihua(cast: CastResult, ct: ChartTime): MeihuaAnalysis {
   const summary = `${verdictText}。論據：${tiYongText}${wangText}；互卦示${processText}，變卦示${endText}。`
 
   return {
+    score: finalScore,
     level,
     tiPos, ti, yong,
     tiYongRelation: main.rel,

@@ -18,7 +18,7 @@ export interface CastResult {
   dong: number // 動爻 1..6
   bian: Hexagram // 變卦
   hu: Hexagram // 互卦
-  numbers: { upper: number; lower: number; sum: number } // 起卦用數（供顯示）
+  numbers: { upper: number; lower: number; sum: number } // 起卦所用之數，供除錯與測試核對（介面目前未顯示）
 }
 
 export function hexagramFromLines(lines: number[]): Hexagram {

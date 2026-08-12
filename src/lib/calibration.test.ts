@@ -33,19 +33,27 @@ describe('古籍實例校準（《增刪卜易》《卜筮正宗》53 則實占�
 
   // 這是準確度的回歸防線：改動斷卦規則後若命中率掉到基準以下，此測試會失敗。
   // 對照組：本資料集古人斷吉者 32 則，故「全部猜吉」的命中率為 60.4%，引擎必須勝過此線。
-  it('方向命中率須維持在 62% 以上（且勝過全猜吉的 60.4% 基準）', () => {
+  it('方向命中率須維持在 66% 以上（且勝過全猜吉的 60.4% 基準）', () => {
     const rs = runAllCases()
     const hits = rs.filter(r => r.hit).length
     const rate = hits / rs.length
     const alwaysJi = rs.filter(r => r.expected === 1).length / rs.length
     expect(rate).toBeGreaterThan(alwaysJi)
-    expect(rate).toBeGreaterThanOrEqual(0.62)
+    expect(rate).toBeGreaterThanOrEqual(0.66)
   })
 
-  it('高信心案例（用神取法無爭議者）命中率須維持在 60% 以上', () => {
+  it('高信心案例（用神取法無爭議者）命中率須維持在 66% 以上', () => {
     const rs = runAllCases().filter(r => r.mapping.confident)
     const rate = rs.filter(r => r.hit).length / rs.length
-    expect(rate).toBeGreaterThanOrEqual(0.60)
+    expect(rate).toBeGreaterThanOrEqual(0.66)
+  })
+
+  // 樣本量僅 53 則，1 則 = 1.9 個百分點，binomial 雜訊約 ±6.5pp。
+  // 門檻設在目前水準略低處，用意是擋住「明顯的退步」，而非宣稱這個數字有統計顯著性。
+  it('分數不得含浮點雜訊：所有案例的分數都應是 0.1 的整數倍', () => {
+    for (const r of runAllCases()) {
+      expect(Math.abs(r.report.score * 10 - Math.round(r.report.score * 10))).toBeLessThan(1e-9)
+    }
   })
 
   it('引擎不應濫用「平」判語：判平比例須低於一成（古籍實占僅 1/53 作平論）', () => {

@@ -7,35 +7,12 @@ import { buildNajiaChart, type NajiaChart } from './lib/najia'
 import { analyzeLiuyao, findQuestionType, QUESTION_GROUPS, QUESTION_TYPES, type LiuyaoReport, type QuestionType } from './lib/interpret'
 import { analyzeMeihua, type MeihuaAnalysis } from './lib/meihua'
 import { TRIGRAMS } from './lib/data/core'
+import {
+  fmtLocal, loadHistory as loadHistoryFrom, parseLocal, saveHistory,
+  type CastInput, type HistoryItem,
+} from './lib/history'
 
 // ── 型別 ──────────────────────────────────────
-interface CastInput {
-  dateLocal: string // 起卦當地牆鐘時間 YYYY-MM-DDTHH:mm（不存 UTC，跨時區開啟舊紀錄才能重現同一盤）
-  method: 'time' | 'number' | 'random' | 'manual'
-  numbers?: number[]
-  includeHour?: boolean
-  manual?: { upper: number; lower: number; dong: number }
-  qtKey: string
-  question: string
-}
-
-function fmtLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-function parseLocal(s: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s)
-  if (!m) return new Date(NaN)
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
-}
-
-interface HistoryItem extends CastInput {
-  savedAt: string
-  guaName: string
-  verdict: string
-}
-
 interface Reading {
   input: CastInput
   ct: ChartTime
@@ -45,8 +22,6 @@ interface Reading {
   meihua: MeihuaAnalysis
   qt: QuestionType
 }
-
-const HISTORY_KEY = 'plum-blossom-history-v1'
 
 const VERDICT_LINE: Record<string, string> = {
   大吉: '用神有力而得助，所謀之事大有可為。',
@@ -75,31 +50,29 @@ function Term({ k, children }: { k: string; children?: ReactNode }) {
   )
 }
 
-function loadHistory(): HistoryItem[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
-    if (!Array.isArray(raw)) return []
-    return raw
-      // 舊版以 UTC dateISO 儲存 → 以本機時區轉為牆鐘時間（同時區使用者結果不變）
-      .map((x) => {
-        if (x && typeof x === 'object' && !x.dateLocal && typeof x.dateISO === 'string') {
-          const d = new Date(x.dateISO)
-          if (!Number.isNaN(d.getTime())) return { ...x, dateLocal: fmtLocal(d) }
-        }
-        return x
-      })
-      // 形狀驗證：略過損壞或無法辨識的項目，避免整個 App 掛掉
-      .filter((x): x is HistoryItem =>
-        !!x && typeof x === 'object'
-        && typeof x.dateLocal === 'string' && !Number.isNaN(parseLocal(x.dateLocal).getTime())
-        && ['time', 'number', 'random', 'manual'].includes(x.method)
-        && typeof x.qtKey === 'string'
-        && (x.method !== 'number' || Array.isArray(x.numbers))
-        && ((x.method !== 'manual' && x.method !== 'random') || (x.manual && typeof x.manual.upper === 'number')),
-      ).slice(0, 50)
-  } catch {
-    return []
-  }
+/** 斷語內文中出現的術語自動標為可點擊。
+ *  先前只有段落標題可點，但辭典裡「真空」「暗動」「進神」「合絆」等最容易卡住的詞
+ *  只出現在內文，使用者點不到，而頁尾卻寫著「帶虛線底線的術語可點擊」。
+ *  以最長優先比對，避免「六合卦」被較短的「六合」搶先切斷。 */
+const GLOSSARY_KEYS = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length)
+const TERM_PATTERN = new RegExp(`(${GLOSSARY_KEYS.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g')
+
+function AutoTerms({ text }: { text: string }) {
+  const parts = text.split(TERM_PATTERN)
+  return (
+    <>
+      {parts.map((part, i) => (
+        // split 帶捕獲群組時，奇數索引即為比對到的術語
+        i % 2 === 1 ? <Term k={part} key={i} /> : <span key={i}>{part}</span>
+      ))}
+    </>
+  )
+}
+
+/** 切換到結果頁時捲回頂端。起卦鈕位於頁面下緣，不捲的話使用者會停在報告底部。 */
+function scrollToTop() {
+  if (typeof window === 'undefined') return
+  window.scrollTo({ top: 0, behavior: 'auto' })
 }
 
 function compute(input: CastInput): Reading {
@@ -248,12 +221,24 @@ function Analysis({ r }: { r: Reading }) {
     <>
       <div className="card">
         <h2>六爻斷卦</h2>
-        {r.report.sections.map(s => (
+        {r.report.sections.filter(s => !s.descriptive).map(s => (
           <div className="section" key={s.title}>
-            <Term k={s.title}><span className="sec-title">{s.title}</span></Term>{s.text}
+            <Term k={s.title}><span className="sec-title">{s.title}</span></Term><AutoTerms text={s.text} />
           </div>
         ))}
-        <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term>{r.report.yingQi}</div>
+        <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term><AutoTerms text={r.report.yingQi} /></div>
+        {/* 只描述性質、不影響吉凶的段落另置一區並預設收合，
+            免得與決定吉凶的段落視覺等權，讀完仍不知道結論從何而來 */}
+        {r.report.sections.some(s => s.descriptive) && (
+          <details className="extra-block">
+            <summary>延伸取象（描述事情樣貌，不影響吉凶判定）</summary>
+            {r.report.sections.filter(s => s.descriptive).map(s => (
+              <div className="section" key={s.title}>
+                <Term k={s.title}><span className="sec-title">{s.title}</span></Term><AutoTerms text={s.text} />
+              </div>
+            ))}
+          </details>
+        )}
       </div>
 
       <div className="card">
@@ -266,7 +251,7 @@ function Analysis({ r }: { r: Reading }) {
           <Term k="互變"><span className="sec-title">互變</span></Term>
           互卦{r.cast.hu.gua.fullName}看過程（{r.meihua.huLower.rel}、{r.meihua.huUpper.rel}）；變卦{r.cast.bian.gua.fullName}看結局（{r.meihua.bianRel.rel}）。
         </div>
-        <div className="section"><span className="sec-title">總斷</span>{r.meihua.summary}</div>
+        <div className="section"><span className="sec-title">總斷</span><AutoTerms text={r.meihua.summary} /></div>
       </div>
 
       <div className="card">
@@ -293,6 +278,7 @@ function Analysis({ r }: { r: Reading }) {
 // ── 主程式 ────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState<'cast' | 'result' | 'history'>('cast')
+  const [sameHourNote, setSameHourNote] = useState('')
   const [question, setQuestion] = useState('')
   const [qtKey, setQtKey] = useState('general')
   const [method, setMethod] = useState<'time' | 'number' | 'random' | 'manual'>('time')
@@ -305,17 +291,13 @@ export default function App() {
   const [manLower, setManLower] = useState(5)
   const [manDong, setManDong] = useState(5)
   const [reading, setReading] = useState<Reading | null>(null)
-  const [history, setHistory] = useState<HistoryItem[]>(loadHistory)
+  const [history, setHistory] = useState<HistoryItem[]>(() => loadHistoryFrom(localStorage))
   const [error, setError] = useState('')
   const [glossaryKey, setGlossaryKey] = useState<string | null>(null)
   const [shareMsg, setShareMsg] = useState('')
 
   useEffect(() => {
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
-    } catch {
-      // 儲存空間滿或被停用時靜默略過，不影響使用
-    }
+    saveHistory(localStorage, history)
   }, [history])
 
   function doCast() {
@@ -357,6 +339,16 @@ export default function App() {
       const r = compute(input)
       setReading(r)
       setTab('result')
+      // 起卦鈕在頁面下緣，不捲回頂端的話使用者會被留在報告底部，看不到最重要的判語卡
+      scrollToTop()
+      // 時間起卦在同一個時辰（兩小時）內必得同一卦，這是梅花易數的固有特性而非程式異常。
+      // 不說明的話，接連起卦的人會拿到字面上完全相同的報告，只會以為程式壞了。
+      setSameHourNote(
+        method === 'time'
+          && history.some(h => h.method === 'time' && h.dateLocal.slice(0, 13) === dateLocal.slice(0, 13))
+          ? '時間起卦於同一時辰（兩小時）內必得同一卦，這是此法的固有特性。若要另起一卦，可改用數字、隨機或指定卦象。'
+          : '',
+      )
       setHistory(h => [{
         ...input,
         savedAt: new Date().toISOString(),
@@ -372,6 +364,8 @@ export default function App() {
     try {
       setReading(compute(item))
       setTab('result')
+      setSameHourNote('')
+      scrollToTop()
     } catch {
       setError('這筆紀錄已損壞，無法重現')
       setTab('cast')
@@ -544,6 +538,7 @@ export default function App() {
             <button className="share-btn" onClick={shareResult}>分享結果</button>
             {shareMsg && <span className="share-msg">{shareMsg}</span>}
           </div>
+          {sameHourNote && <div className="card note-card">{sameHourNote}</div>}
           <div className="card">
             <div className="time-info">
               {reading.ct.solarText}（{reading.ct.weekday}）· {reading.ct.lunarText}<br />
