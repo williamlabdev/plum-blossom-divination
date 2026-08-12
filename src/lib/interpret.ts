@@ -88,6 +88,17 @@ export interface ReportSection {
   descriptive?: boolean
 }
 
+/** 主導條件：古法中有若干格局是「一條定生死」的，不與其他因素加總比大小。
+ *  例如野鶴斷近病逢空，直接就說「許次日退災」，並不去衡量月建剋不剋用神。
+ *  引擎若把這類條件當成眾多加分項之一，會被次要因素的加總淹沒而判出相反方向。 */
+export interface DecisiveCondition {
+  name: string
+  /** +1 定吉、−1 定凶 */
+  direction: 1 | -1
+  /** 古籍依據與觸發理由 */
+  reason: string
+}
+
 export interface LiuyaoReport {
   yongShenDesc: string
   yongShenLine: LineInfo | null
@@ -96,7 +107,14 @@ export interface LiuyaoReport {
   verdict: '大吉' | '偏吉' | '平' | '偏凶' | '大凶'
   sections: ReportSection[]
   yingQi: string
+  /** 本卦觸發的主導條件（可能為空）。正反同時觸發時互相抵銷，回歸一般加總。 */
+  decisive: DecisiveCondition[]
 }
+
+/** 主導條件的鉗制幅度。只定方向、不定強度——
+ *  古人說「近病逢空即愈」是斷吉凶方向，不是斷「大吉」，故鉗到偏吉／偏凶即可，
+ *  真正的強度仍交由各項生剋加總決定。 */
+const DECISIVE_CLAMP = 1.2
 
 const posName = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻']
 
@@ -127,6 +145,7 @@ function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
 
 export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType): LiuyaoReport {
   const sections: ReportSection[] = []
+  const decisive: DecisiveCondition[] = []
   let score = 0
 
   // 1. 找用神
@@ -165,7 +184,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     return {
       yongShenDesc, yongShenLine: null, isFuShen, score: -2, verdict: '偏凶',
       sections: [{ title: '用神', text: yongShenDesc + '，事難有著落，所問之事恐無明確頭緒。' }],
-      yingQi: '難以推斷',
+      yingQi: '難以推斷', decisive: [],
     }
   }
 
@@ -344,11 +363,27 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
         ? `用神${yBranch}落旬空，「近病逢空即愈」，病氣隨空而散，待出空之日（${yBranch}日或${chong(yBranch)}日）即見痊可`
         : `用神${yBranch}落旬空，「久病逢空即死」，纏綿之疾而用神落空，是元氣已虛、根本動搖之象，出空之日反須格外提防`)
       score += jin ? 2 : -2.5
+      decisive.push({
+        name: jin ? '近病逢空' : '久病逢空',
+        direction: jin ? 1 : -1,
+        reason: jin
+          ? '《增刪卜易》斷近病逢空，逕許退災之期，不再權衡月建生剋——病氣既隨空而散，其餘皆為次要'
+          : '《增刪卜易》「久病逢空即死」，纏綿之疾而用神落空，縱使用神當令亦不足恃',
+      })
     } else if (bianKong) {
       bParts.push(jin
         ? `用神發動化出${target.bian!.sb.branch}而落旬空，病勢化空而去，「近病逢空即愈」，待${chong(target.bian!.sb.branch)}日沖空即可痊癒`
         : `用神發動化出${target.bian!.sb.branch}而落旬空，久病而化空，病去無憑、元氣無所依歸，非吉象`)
       score += jin ? 1.5 : -2
+      // 野鶴斷澤地萃上爻未土化戌、戌值旬空之例，原話即「戌值旬空，近病逢空即愈，許次日退災」——
+      // 他把「逢空即愈」直接用在化空上，與用神自身落空同論，故此處亦列為主導條件。
+      decisive.push({
+        name: jin ? '近病化空' : '久病化空',
+        direction: jin ? 1 : -1,
+        reason: jin
+          ? '《增刪卜易》斷用神化空之近病，逕以「近病逢空即愈」許退災之期，不再權衡月建生剋'
+          : '久病而化空，病去無憑、元氣無所依歸，古法不作吉論',
+      })
     }
 
     if (yRiChong) {
@@ -356,6 +391,13 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
         ? `用神逢日辰${ct.day.branch}沖，「近病逢沖即愈」，沖散病氣，其病當退`
         : `用神逢日辰${ct.day.branch}沖，「久病逢沖莫治」，久病之身再受沖激，元氣潰散，凶多吉少`)
       score += jin ? 2 : -2.5
+      decisive.push({
+        name: jin ? '近病逢沖' : '久病逢沖',
+        direction: jin ? 1 : -1,
+        reason: jin
+          ? '古法「近病逢沖即愈」，沖散病氣即為病去之象'
+          : '古法「久病逢沖莫治」，久病之身再受沖激則元氣潰散，此時用神縱旺亦不作吉論',
+      })
     }
 
     // 世爻六親：僅自占病（用神即世爻）時論之——世爻代表病者本身，官鬼持世為病纏其身，
@@ -519,6 +561,14 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
         score -= 0.8
       }
     }
+    // 【已試過並移除】忌神持世
+    // 古法有「兄弟持世，求財不利」之說，野鶴斷終身財福也逕以「兄爻持世，永無發福之秋」
+    // 定案，看似是一條有力的規則，我曾據此加入計分（−1.5）甚至列為主導條件。
+    // 但校準結果否定了它：列為主導條件時觸發 13 次只命中 7 次（約當亂猜）；
+    // 即使只當一般計分項，也讓保留測試集從 60.4% 退到 58.3%。
+    // 它之所以在訓練集上看起來有效，是因為我本來就是看著訓練集裡兩則「占終身財福」
+    // 的案例把它加進來的——典型的過擬合。故完全移除，不留計分。
+    // 教訓：古籍上有明文的規則，不代表它在實占中具有決定性；仍須以保留集驗證。
     sections.push({ title: '原神忌神', text: parts.join('；') + '。' })
   }
 
@@ -782,7 +832,32 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   // 分數由 0.2／0.3／0.5／0.8／1.5／2.5 這類十進位小數累加而成，二進位下都不精確，
   // 累加十幾項後會產生 1e-15 級誤差（實測出現過 -3.999999999999999），
   // 使臨界卦的判語由浮點噪音決定且無法重現。四捨五入到 0.1 消除此問題。
-  const finalScore = Math.round(score * 10) / 10
+  let finalScore = Math.round(score * 10) / 10
+
+  // ── 主導條件鉗制 ────────────────────────────────────────────────
+  // 古人斷卦並非把所有因素加總比大小：遇到「一條定生死」的格局時，逕以該條定調。
+  // 引擎若一律加總，這類條件會被次要因素淹沒——實測《增刪卜易》近病逢空的兩則案例，
+  // 野鶴斷吉並許退災之期，引擎卻因月建剋用神、忌神當令等項累計成大凶。
+  // 故此處只鉗制「方向」，不動強度：若主導條件全部指吉，分數至少推到偏吉；
+  // 全部指凶則至少推到偏凶；正反同時觸發時視為互相抵銷，仍回歸一般加總。
+  const upward = decisive.filter(d => d.direction > 0)
+  const downward = decisive.filter(d => d.direction < 0)
+  if (upward.length && !downward.length) {
+    finalScore = Math.max(finalScore, DECISIVE_CLAMP)
+  } else if (downward.length && !upward.length) {
+    finalScore = Math.min(finalScore, -DECISIVE_CLAMP)
+  }
+  if (decisive.length) {
+    const conflict = upward.length > 0 && downward.length > 0
+    sections.push({
+      title: '主導條件',
+      text: conflict
+        ? `本卦同時觸發指向相反的主導條件（${decisive.map(d => d.name).join('、')}），彼此抵銷，仍依各項生剋通盤權衡：`
+          + decisive.map(d => `${d.name}——${d.reason}`).join('；') + '。'
+        : `${decisive.map(d => d.name).join('、')}——古法於此有專斷，逕定吉凶方向而不與其他生剋比較輕重。`
+          + decisive.map(d => d.reason).join('；') + '。',
+    })
+  }
 
   // 11. 應期
   // 強弱門檻與下方判語門檻共用同一個界線，否則會出現「判偏吉、應期卻說用神偏弱」的矛盾。
@@ -812,7 +887,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   else if (finalScore > -4) verdict = '偏凶'
   else verdict = '大凶'
 
-  return { yongShenDesc, yongShenLine: target, isFuShen, score: finalScore, verdict, sections, yingQi }
+  return { yongShenDesc, yongShenLine: target, isFuShen, score: finalScore, verdict, sections, yingQi, decisive }
 }
 
 // 生我者（用神之原神五行）

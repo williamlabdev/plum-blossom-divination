@@ -53,15 +53,25 @@ describe('古籍實例校準（歷代六爻典籍 101 則實占案例）', () =>
   // ── 準確度防線 ────────────────────────────────────────────────
   // 門檻設在目前水準略低處，用意是擋住「明顯的退步」，而非宣稱這些數字有統計顯著性。
   // 樣本 101 則，1 則 ≈ 1 個百分點，binomial 雜訊約 ±4.8pp。
-  it('整體命中率須維持在 62% 以上，且必須勝過「全部猜吉」的基準', () => {
+  it('整體命中率須維持在 65% 以上，且必須勝過「全部猜吉」的基準', () => {
     const s = summarise(runAllCases())
     expect(s.hitRate).toBeGreaterThan(s.alwaysJi)
-    expect(s.hitRate).toBeGreaterThanOrEqual(0.62)
+    expect(s.hitRate).toBeGreaterThanOrEqual(0.65)
   })
 
-  it('高信心案例（用神取法無爭議者）命中率須維持在 64% 以上', () => {
+  it('高信心案例（用神取法無爭議者）命中率須維持在 66% 以上', () => {
     const s = summarise(runAllCases().filter(r => r.mapping.confident))
-    expect(s.hitRate).toBeGreaterThanOrEqual(0.64)
+    expect(s.hitRate).toBeGreaterThanOrEqual(0.66)
+  })
+
+  // 主導條件是「一條定生死」的格局，若它的命中率掉到與整體相當，就失去獨立存在的理由，
+  // 該退回一般計分項（忌神持世就是這樣被移除的）。
+  it('主導條件觸發時的命中率須明顯高於整體水準（否則不配稱為決定性）', () => {
+    const rs = runAllCases()
+    const fired = rs.filter(r => r.report.decisive.length > 0)
+    expect(fired.length).toBeGreaterThanOrEqual(8)
+    const firedRate = fired.filter(r => r.hit).length / fired.length
+    expect(firedRate).toBeGreaterThanOrEqual(0.85)
   })
 
   // 這是全套測試裡最有意義的一項：第二批從未被用來調參，所以它量的是泛化能力。
