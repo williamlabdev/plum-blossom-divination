@@ -2,7 +2,7 @@
 import type { Branch, Element, LiuQin, LiuShou, Stem } from './data/core'
 import {
   BRANCHES, BRANCH_ELEMENT, KE, LIUSHOU_SEQ, NAJIA, SHENG,
-  branchIndex, chong, liuQinOf, liuShouStart, trigramByLines, trigramByName,
+  branchIndex, chong, he, liuQinOf, liuShouStart, trigramByLines, trigramByName,
 } from './data/core'
 import type { ZhouyiGua } from './data/zhouyi'
 import { guaByLines } from './data/zhouyi'
@@ -157,6 +157,24 @@ const WANGWANG: Record<Branch, Branch> = {
   申: '酉', 酉: '子', 戌: '辰', 亥: '未', 子: '戌', 丑: '丑',
 }
 
+// ── 六沖卦與六合卦 ─────────────────────────────
+// 內外卦對應之爻（初與四、二與五、三與六）納甲地支若全部相沖，即為六沖卦（共十卦）；
+// 若全部相合，即為六合卦（共八卦）。六沖主事散難成、六合主事易成，是斷卦的宏觀格局。
+export type GuaXing = '六沖' | '六合' | null
+
+export function guaXingOf(lines: number[]): GuaXing {
+  const sbs = najiaLines(lines)
+  let allChong = true
+  let allHe = true
+  for (let i = 0; i < 3; i++) {
+    if (chong(sbs[i].branch) !== sbs[i + 3].branch) allChong = false
+    if (he(sbs[i].branch) !== sbs[i + 3].branch) allHe = false
+  }
+  if (allChong) return '六沖'
+  if (allHe) return '六合'
+  return null
+}
+
 // ── 旺衰與長生 ──────────────────────────────────
 export type WangShuai = '旺' | '相' | '休' | '囚' | '死'
 
@@ -212,6 +230,8 @@ export interface NajiaChart {
   firstGua: ZhouyiGua // 首卦
   lines: LineInfo[]
   shenSha: ShenSha
+  benXing: GuaXing // 本卦格局：六沖／六合／無
+  bianXing: GuaXing // 變卦格局
   wuXingZhuangTai: { el: Element; wang: WangShuai; cs: ChangSheng }[] // 五行旺衰（月令）與長生（日支）
   liuQinWuXing: { liuqin: LiuQin; el: Element }[] // 本宮六親五行對照
 }
@@ -309,6 +329,8 @@ export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): Naj
     firstGua,
     lines,
     shenSha,
+    benXing: guaXingOf(ben.lines),
+    bianXing: guaXingOf(bianLines),
     wuXingZhuangTai: ELS.map(el => ({ el, wang: wangShuaiOf(el, monthEl), cs: changShengOf(el, ct.day.branch) })),
     liuQinWuXing: ELS.map(el => ({ liuqin: liuQinOf(info.gongElement, el), el })),
   }

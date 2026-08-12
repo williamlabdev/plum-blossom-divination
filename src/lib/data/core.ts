@@ -59,6 +59,58 @@ export function he(b: Branch): Branch {
   throw new Error('unreachable')
 }
 
+// 三合局：申子辰合水、巳酉丑合金、寅午戌合火、亥卯未合木
+export interface SanHeGroup {
+  branches: [Branch, Branch, Branch]
+  element: Element
+}
+export const SANHE_GROUPS: SanHeGroup[] = [
+  { branches: ['申', '子', '辰'], element: '水' },
+  { branches: ['巳', '酉', '丑'], element: '金' },
+  { branches: ['寅', '午', '戌'], element: '火' },
+  { branches: ['亥', '卯', '未'], element: '木' },
+]
+// 查某地支所屬的三合組（若有）
+export function sanHeGroupOf(b: Branch): SanHeGroup | undefined {
+  return SANHE_GROUPS.find(g => g.branches.includes(b))
+}
+
+// 五行墓庫（辰戌丑未四墓庫）：木墓未、火土同宮墓戌、金墓丑、水墓辰
+// 與 najia.ts 的長生十二宮（changShengOf）推出的「墓」位一致
+export const MU_BRANCH: Record<Element, Branch> = { 木: '未', 火: '戌', 土: '戌', 金: '丑', 水: '辰' }
+// 五行絕地：木絕申、火土絕亥、金絕寅、水絕巳
+export const JUE_BRANCH: Record<Element, Branch> = { 木: '申', 火: '亥', 土: '亥', 金: '寅', 水: '巳' }
+
+// 四進神／四退神：動爻化出同五行而地支順進為「進神」、逆退為「退神」
+// 古法僅論此四組（亥子、寅卯、巳午、申酉），辰戌丑未土支不在其列
+const JINSHEN_PAIRS: [Branch, Branch][] = [['亥', '子'], ['寅', '卯'], ['巳', '午'], ['申', '酉']]
+export function jinTuiShen(from: Branch, to: Branch): '進神' | '退神' | null {
+  for (const [a, b] of JINSHEN_PAIRS) {
+    if (from === a && to === b) return '進神'
+    if (from === b && to === a) return '退神'
+  }
+  return null
+}
+
+// 六親相生循環（與宮五行無關，恆定）：父母生兄弟、兄弟生子孫、子孫生妻財、妻財生官鬼、官鬼生父母
+// 對應相剋：父母剋子孫、子孫剋官鬼、官鬼剋兄弟、兄弟剋妻財、妻財剋父母
+export const LIUQIN_ORDER: LiuQin[] = ['父母', '兄弟', '子孫', '妻財', '官鬼']
+function liuqinIdx(lq: LiuQin): number {
+  return LIUQIN_ORDER.indexOf(lq)
+}
+// 原神：生用神者
+export function yuanShenOf(lq: LiuQin): LiuQin {
+  return LIUQIN_ORDER[(liuqinIdx(lq) + 4) % 5]
+}
+// 忌神：剋用神者
+export function jiShenOf(lq: LiuQin): LiuQin {
+  return LIUQIN_ORDER[(liuqinIdx(lq) + 3) % 5]
+}
+// 仇神：生忌神、剋原神者
+export function chouShenOf(lq: LiuQin): LiuQin {
+  return LIUQIN_ORDER[(liuqinIdx(lq) + 2) % 5]
+}
+
 // ── 八卦 ──
 export interface Trigram {
   name: string

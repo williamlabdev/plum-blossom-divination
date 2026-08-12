@@ -4,7 +4,7 @@ import { GLOSSARY } from './lib/glossary'
 import { getChartTime, type ChartTime } from './lib/calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, randomInt, type CastResult, type Hexagram } from './lib/casting'
 import { buildNajiaChart, type NajiaChart } from './lib/najia'
-import { analyzeLiuyao, QUESTION_TYPES, type LiuyaoReport, type QuestionType } from './lib/interpret'
+import { analyzeLiuyao, findQuestionType, QUESTION_GROUPS, QUESTION_TYPES, type LiuyaoReport, type QuestionType } from './lib/interpret'
 import { analyzeMeihua, type MeihuaAnalysis } from './lib/meihua'
 import { TRIGRAMS } from './lib/data/core'
 
@@ -114,7 +114,8 @@ function compute(input: CastInput): Reading {
     cast = castManual(m.upper, m.lower, m.dong, input.method === 'random' ? '隨機起卦' : '指定卦象')
   }
   const chart = buildNajiaChart(cast.ben, cast.dong, ct)
-  const qt = QUESTION_TYPES.find(q => q.key === input.qtKey) ?? QUESTION_TYPES[0]
+  // findQuestionType 會處理舊紀錄的 key（健康疾病已拆為近病／久病兩類）
+  const qt = findQuestionType(input.qtKey) ?? QUESTION_TYPES[0]
   const report = analyzeLiuyao(chart, ct, qt)
   const meihua = analyzeMeihua(cast, ct)
   return { input, ct, cast, chart, report, meihua, qt }
@@ -427,13 +428,19 @@ export default function App() {
           <h2>所問何事</h2>
           <input type="text" placeholder="想問的事（選填）" value={question} onChange={e => setQuestion(e.target.value)} />
           <label className="field">問題類別（決定用神）</label>
-          <div className="chip-row">
-            {QUESTION_TYPES.map(q => (
-              <button key={q.key} className={'chip' + (qtKey === q.key ? ' active' : '')} onClick={() => setQtKey(q.key)}>
-                {q.label}
-              </button>
-            ))}
-          </div>
+          {QUESTION_GROUPS.map(g => (
+            <div key={g} className="qt-group">
+              <div className="qt-group-name">{g}</div>
+              <div className="chip-row">
+                {QUESTION_TYPES.filter(q => q.group === g).map(q => (
+                  <button key={q.key} className={'chip' + (qtKey === q.key ? ' active' : '')} onClick={() => setQtKey(q.key)}>
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="qt-note">選定的用神：{findQuestionType(qtKey)?.yongShen}　·　{findQuestionType(qtKey)?.note}</div>
 
           <label className="field">起卦方式</label>
           <div className="seg">
@@ -565,7 +572,7 @@ export default function App() {
           {history.map(h => (
             <div className="history-item" key={h.savedAt} onClick={() => openHistory(h)}>
               <div>
-                <div>{h.question || QUESTION_TYPES.find(q => q.key === h.qtKey)?.label}｜{h.guaName}</div>
+                <div>{h.question || findQuestionType(h.qtKey)?.label}｜{h.guaName}</div>
                 <div className="h-time">{new Date(h.savedAt).toLocaleString('zh-TW')}</div>
               </div>
               <div className="h-verdict">{h.verdict}</div>

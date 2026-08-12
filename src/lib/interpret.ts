@@ -1,30 +1,84 @@
-// 六爻斷卦引擎：依問題類型取用神，以生剋旺衰、旬空月破、動變回頭斷吉凶
-import type { Branch, Element, LiuQin } from './data/core'
-import { BRANCH_ELEMENT, chong, he, relation } from './data/core'
+// 六爻斷卦引擎：依問題類型取用神，以生剋旺衰、旬空月破、動變回頭、原忌仇神、合沖斷吉凶
+import type { Branch, Element, LiuQin, LiuShou } from './data/core'
+import {
+  BRANCH_ELEMENT, JUE_BRANCH, MU_BRANCH, SANHE_GROUPS,
+  chong, chouShenOf, he, jiShenOf, jinTuiShen, relation, yuanShenOf,
+} from './data/core'
 import type { ChartTime } from './calendar'
 import type { LineInfo, NajiaChart } from './najia'
+import { wangShuaiOf } from './najia'
+
+/** 占病的新舊之別。古法以百日為界，斷法完全相反：
+ *  「近病逢空即愈，久病逢空即死；近病逢沖即愈，久病逢沖即死」——
+ *  逢空逢沖對近病是病去之吉象，對久病卻是元氣潰散之凶象。 */
+export type BingType = '近病' | '久病'
+
+export type QuestionGroup = '自身' | '財務' | '功名' | '人際' | '居家'
 
 export interface QuestionType {
   key: string
   label: string
   yongShen: LiuQin | '世爻'
   note: string
+  group: QuestionGroup
+  /** 設定後啟用占病專用法則（逢空逢沖反向、官鬼為病神、子孫為醫藥） */
+  bingType?: BingType
 }
 
+/** 六親取用依古法《卜筮正宗・用神章》：
+ *  父母爻──父母師長、家宅田產、文書契約、車船衣物、墳塋
+ *  兄弟爻──兄弟姊妹、同輩朋友、同門合夥
+ *  子孫爻──子女晚輩、醫生藥物、僧道、六畜、奴僕、解憂之神
+ *  妻財爻──妻妾、財物貨品、倉庫糧食
+ *  官鬼爻──官職功名、丈夫、盜賊、憂疑病症、官司對頭 */
 export const QUESTION_TYPES: QuestionType[] = [
-  { key: 'general', label: '綜合運勢', yongShen: '世爻', note: '以世爻為用神，看自身氣運' },
-  { key: 'wealth', label: '財運求財', yongShen: '妻財', note: '妻財為用神，子孫為原神（財源）' },
-  { key: 'career', label: '事業官運', yongShen: '官鬼', note: '官鬼為用神，妻財為原神' },
-  { key: 'love-m', label: '感情（男問）', yongShen: '妻財', note: '男測感情以妻財為用神，看對方' },
-  { key: 'love-f', label: '感情（女問）', yongShen: '官鬼', note: '女測感情以官鬼為用神，看對方' },
-  { key: 'study', label: '學業考試', yongShen: '父母', note: '父母爻主文書成績，參看官鬼（名次）' },
-  { key: 'health', label: '健康疾病', yongShen: '世爻', note: '自占病以世爻為用神，官鬼為病、子孫為醫藥' },
-  { key: 'children', label: '子女晚輩', yongShen: '子孫', note: '子孫爻為用神' },
-  { key: 'elders', label: '父母長輩', yongShen: '父母', note: '父母爻為用神' },
-  { key: 'partner', label: '朋友合夥', yongShen: '兄弟', note: '兄弟爻為用神' },
-  { key: 'lawsuit', label: '官司口舌', yongShen: '官鬼', note: '官鬼為用神，看官司對頭與官方態度' },
-  { key: 'travel', label: '出行遠行', yongShen: '世爻', note: '世爻為用神，參看驛馬' },
+  // 自身
+  { key: 'general', label: '綜合運勢', yongShen: '世爻', group: '自身', note: '以世爻為用神，看自身氣運' },
+  {
+    key: 'health-new', label: '疾病（近病）', yongShen: '世爻', group: '自身', bingType: '近病',
+    note: '自占病以世爻為用神，官鬼為病、子孫為醫藥；近病者百日以內，逢空逢沖反主病去',
+  },
+  {
+    key: 'health-old', label: '疾病（久病）', yongShen: '世爻', group: '自身', bingType: '久病',
+    note: '自占病以世爻為用神，官鬼為病、子孫為醫藥；久病者纏綿百日以上，逢空逢沖主元氣潰散',
+  },
+  { key: 'travel', label: '出行遠行', yongShen: '世爻', group: '自身', note: '世爻為用神，參看驛馬' },
+  { key: 'dream', label: '解夢徵兆', yongShen: '世爻', group: '自身', note: '以世爻為用神，看徵兆應於己身之吉凶' },
+
+  // 財務
+  { key: 'wealth', label: '財運求財', yongShen: '妻財', group: '財務', note: '妻財為用神，子孫為原神（財源）' },
+  { key: 'trade', label: '買賣交易', yongShen: '妻財', group: '財務', note: '貨物錢財皆屬妻財；世為我、應為對方，兩相生合則交易可成' },
+  { key: 'lost', label: '尋物失物', yongShen: '妻財', group: '財務', note: '財物以妻財為用神；用神不空不破則物在可尋' },
+  { key: 'livestock', label: '六畜寵物', yongShen: '子孫', group: '財務', note: '古法六畜屬子孫爻，買賣牲口、豢養寵物皆以子孫為用神' },
+
+  // 功名
+  { key: 'career', label: '事業官運', yongShen: '官鬼', group: '功名', note: '官鬼為用神，妻財為原神' },
+  { key: 'study', label: '學業考試', yongShen: '父母', group: '功名', note: '父母爻主文書成績，參看官鬼（名次）' },
+  { key: 'document', label: '文書契約', yongShen: '父母', group: '功名', note: '文書、契約、證照、申請呈報皆以父母爻為用神' },
+  { key: 'lawsuit', label: '官司口舌', yongShen: '官鬼', group: '功名', note: '官鬼為用神，看官司對頭與官方態度' },
+
+  // 人際
+  { key: 'love-m', label: '感情（男問）', yongShen: '妻財', group: '人際', note: '男測感情以妻財為用神，看對方' },
+  { key: 'love-f', label: '感情（女問）', yongShen: '官鬼', group: '人際', note: '女測感情以官鬼為用神，看對方' },
+  { key: 'children', label: '子女晚輩', yongShen: '子孫', group: '人際', note: '子孫爻為用神' },
+  { key: 'elders', label: '父母長輩', yongShen: '父母', group: '人際', note: '父母爻為用神' },
+  { key: 'partner', label: '朋友合夥', yongShen: '兄弟', group: '人際', note: '兄弟爻為用神' },
+  { key: 'subordinate', label: '部屬員工', yongShen: '子孫', group: '人際', note: '古法奴僕屬子孫爻，部屬、員工、受僱之人皆以子孫為用神' },
+
+  // 居家
+  { key: 'house', label: '家宅房產', yongShen: '父母', group: '居家', note: '古法宅舍田產屬父母爻，買屋、租屋、搬遷、修造皆以父母為用神' },
+  { key: 'tomb', label: '墳塋風水', yongShen: '父母', group: '居家', note: '古法墳塋屬父母爻；用神安靜有氣為吉，動而受剋則不安' },
 ]
+
+export const QUESTION_GROUPS: QuestionGroup[] = ['自身', '財務', '功名', '人際', '居家']
+
+/** 舊版紀錄的問題類型 key 對應到現行 key（健康疾病已拆為近病／久病兩類） */
+export const LEGACY_QT_KEYS: Record<string, string> = { health: 'health-new' }
+
+export function findQuestionType(key: string): QuestionType | undefined {
+  return QUESTION_TYPES.find(q => q.key === key)
+    ?? QUESTION_TYPES.find(q => q.key === LEGACY_QT_KEYS[key])
+}
 
 export interface ReportSection {
   title: string
@@ -42,6 +96,31 @@ export interface LiuyaoReport {
 }
 
 const posName = ['初爻', '二爻', '三爻', '四爻', '五爻', '上爻']
+
+const LIUSHOU_FLAVOR: Record<LiuShou, string> = {
+  青龍: '喜氣臨門、順遂如意，多有貴人相助',
+  朱雀: '文書、口舌、消息之事，動則主爭辯是非',
+  勾陳: '遲滯遷延、田土牽連，事情進展緩慢',
+  騰蛇: '虛驚多變、心緒不寧，事多反覆難料',
+  白虎: '剛烈突發、傷損之象，宜防意外',
+  玄武: '暗昧不明、隱瞞盜失，慎防背後之事',
+}
+
+// 爻位取象：六爻由下而上所居之位，依序象徵事情所涉及的身分、階段與部位
+const LINE_POSITION_IMAGERY: string[] = [
+  '初爻居事之始，如足如根，主幼輩、基層或事情剛起步',
+  '二爻近家宅根基，如腿如股，主家人骨肉或切身自顧之事',
+  '三爻居內外轉折，如腰如腹，主同輩手足或事情生變之機',
+  '四爻近上而通外，如胸如背，主朋友外緣或事將近身',
+  '五爻居尊貴之位，如頭如面，主上司尊長或事業要津',
+  '上爻處事之極，如頂如首，主年高之人或事情終局',
+]
+
+function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
+  const cands = chart.lines.filter(l => l.liuqin === lq)
+  if (cands.length === 0) return undefined
+  return cands.find(l => l.isDong) ?? cands.find(l => l.wangShuai === '旺' || l.wangShuai === '相') ?? cands[0]
+}
 
 export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType): LiuyaoReport {
   const sections: ReportSection[] = []
@@ -87,6 +166,62 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     }
   }
 
+  // 1b. 卦格：六沖主離散、六合主和合，是全卦最宏觀的一層判斷。
+  //     但沖合的吉凶隨所問之事而反轉——古云「六沖卦：占病近病則愈、久病則死；占訟則散；
+  //     占求財求名則不成；占行人則歸；占婚姻則不合」。散對想成之事是凶，對想脫之事反是吉，
+  //     故此處先依問題性質定出沖合的正負向，再論本卦與變卦。
+  if (chart.benXing || chart.bianXing) {
+    let chongVal: number // 六沖對此問題的分數方向
+    let heVal: number // 六合對此問題的分數方向
+    let chongWhy: string
+    let heWhy: string
+    // 權重刻意壓在「背景級」：卦格是全卦氛圍，而月建日辰生剋是直接證據，
+    // 背景不該重過直接證據。53 則案例校準顯示權重超過此值反而拉低命中率。
+    if (qt.bingType === '近病') {
+      chongVal = 0.9; heVal = -0.9
+      chongWhy = '沖散病氣，近病遇之其病當退'
+      heWhy = '病與身相合而纏綿，近病遇之反難速去'
+    } else if (qt.bingType === '久病') {
+      chongVal = -1.2; heVal = -0.3
+      chongWhy = '久病之身再受沖激，元氣潰散，古云「久病逢沖莫治」'
+      heWhy = '久病遇合，病氣膠著難解，纏綿不去'
+    } else if (qt.key === 'lawsuit') {
+      chongVal = 0.6; heVal = -0.6
+      chongWhy = '訟事逢沖則散，糾纏可解'
+      heWhy = '訟事逢合則膠著難散，牽連日久'
+    } else if (qt.key === 'travel') {
+      chongVal = 0.6; heVal = -0.3
+      chongWhy = '沖則主動，出行之事逢之，行程得以啟動'
+      heWhy = '合則主靜，行程易生牽絆滯留'
+    } else {
+      chongVal = -0.9; heVal = 0.9
+      chongWhy = '所問之事貴在聚合，逢沖則離散無常，謀事難成'
+      heWhy = '所問之事貴在聚合，逢合則人事湊泊、其事易成'
+    }
+
+    const gParts: string[] = []
+    if (chart.benXing === '六沖') {
+      gParts.push(`本卦為六沖卦（六爻內外全沖），${chongWhy}`)
+      score += chongVal
+    } else if (chart.benXing === '六合') {
+      gParts.push(`本卦為六合卦（六爻內外全合），${heWhy}`)
+      score += heVal
+    }
+    // 變卦主後續走向，力道約為本卦之六成
+    if (chart.bianXing === '六沖') {
+      gParts.push(chart.benXing === '六合'
+        ? '而變卦轉為六沖，先合後散，初看順遂終難維持'
+        : `變卦亦為六沖，後續之勢仍主離散`)
+      score += chongVal * 0.6
+    } else if (chart.bianXing === '六合') {
+      gParts.push(chart.benXing === '六沖'
+        ? '而變卦轉為六合，先散後聚，起初無頭緒、後來反能湊泊'
+        : `變卦亦為六合，後續之勢仍主和合`)
+      score += heVal * 0.6
+    }
+    if (gParts.length) sections.push({ title: '卦格', text: gParts.join('；') + '。' })
+  }
+
   const yEl: Element = isFuShen ? target.fuShen!.sb.element : target.sb.element
   const yBranch: Branch = isFuShen ? target.fuShen!.sb.branch : target.sb.branch
   const yKong = ct.xunKong.includes(yBranch) // 用神本身（伏神時以伏神地支論）是否旬空
@@ -95,6 +230,10 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   // 2. 月建
   const mEl = BRANCH_ELEMENT[ct.month.branch]
   const mRel = relation(mEl, yEl)
+  // 用神以月令論旺衰（伏神為用神時，以伏神本身五行論，不可用飛神的 wangShuai）
+  const yWang = wangShuaiOf(yEl, mEl)
+  const yYouQi = yWang === '旺' || yWang === '相' // 月令有氣：旺相為有氣，休囚死為無氣
+  const yRiChong = yBranch === chong(ct.day.branch) // 用神是否被日辰所沖
   let mText: string
   if (yBranch === chong(ct.month.branch)) {
     mText = `用神${yBranch}${yEl}逢月建${ct.month.branch}沖，是為「月破」，大受挫傷`
@@ -120,12 +259,20 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   const dEl = BRANCH_ELEMENT[ct.day.branch]
   const dRel = relation(dEl, yEl)
   let dText: string
-  if (yBranch === chong(ct.day.branch)) {
-    if (score >= 0 && !yKong) {
-      dText = `日辰${ct.day.branch}沖用神，用神旺而逢沖為「暗動」，事已暗中萌動`
+  const isBing = !!qt.bingType
+  if (yRiChong && isBing) {
+    // 占病逢沖不論暗動日破，改由下方「占病」段落依近病久病反向斷之
+    dText = `日辰${ct.day.branch}沖用神，占病逢沖另有專斷（詳見占病一段）`
+  } else if (yRiChong) {
+    // 旺相之爻逢沖為「暗動」、休囚無氣之爻逢沖為「日破」；旬空逢沖則為「沖空」另論
+    if (yYouQi && !yKong) {
+      dText = `日辰${ct.day.branch}沖用神，用神當令有氣（${yWang}）而逢沖，是為「暗動」，事已暗中萌動`
       score += 0.5
+    } else if (yKong) {
+      dText = `日辰${ct.day.branch}沖用神而用神正落旬空，是為「沖空」，虛而受激，事浮動未實`
+      score -= 0.5
     } else {
-      dText = `日辰${ct.day.branch}沖用神，衰而逢沖為「日破」，事有崩解之虞`
+      dText = `日辰${ct.day.branch}沖用神，用神休囚無氣（${yWang}）而逢沖，是為「日破」，事有崩解之虞`
       score -= 2
     }
   } else if (dRel === '我生') {
@@ -146,13 +293,139 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   }
   sections.push({ title: '月建日辰', text: `${mText}；${dText}。` })
 
-  // 4. 旬空
-  if (yKong) {
-    sections.push({
-      title: '旬空',
-      text: `用神${yBranch}落於旬空（${ct.xunKong.join('')}空），眼下之事尚虛、未見實象，須待出空（${yBranch}值日或逢沖之日）方能落實。`,
-    })
-    score -= 1
+  // 4. 旬空：古法分真空與假空——旺不為空、動不為空、有生扶不為空
+  //    「有生扶」須通盤看：日辰生扶、月建生扶、他爻發動來生皆算，不可只看日辰
+  //    唯休囚無氣、又不發動、又全無生扶者，方為「真空」，事乃真正落空
+  if (yKong && !isBing) {
+    const dayFu = !yRiChong && (dRel === '我生' || dRel === '比和') // 日辰生扶
+    const monthFu = mRel === '我生' || mRel === '比和' // 月建生扶
+    const dongFu = chart.lines.some(l => // 他爻發動來生用神（原神動）
+      l.isDong && l.pos !== target.pos && relation(l.sb.element, yEl) === '我生')
+    const kongDong = target.isDong && !isFuShen
+    const chuKong = `出空之期在${yBranch}日（值日填實）或${chong(yBranch)}日（沖空則實）`
+    let kText: string
+    if (kongDong) {
+      kText = `用神${yBranch}雖落旬空（${ct.xunKong.join('')}空），然「動不為空」，發動之爻空而有用，事仍在進行，${chuKong}。`
+      score -= 0.3
+    } else if (yYouQi) {
+      kText = `用神${yBranch}雖落旬空（${ct.xunKong.join('')}空），然月令${yWang}而「旺不為空」，此為假空，只是時候未到，${chuKong}。`
+      score -= 0.3
+    } else if (dayFu || monthFu || dongFu) {
+      const fuYuan = dayFu ? `日辰${ct.day.branch}` : monthFu ? `月建${ct.month.branch}` : '動爻'
+      kText = `用神${yBranch}落旬空（${ct.xunKong.join('')}空），幸得${fuYuan}生扶，「有生扶不為空」，非真落空，事只是遲而未顯，${chuKong}。`
+      score -= 0.6
+    } else {
+      kText = `用神${yBranch}落旬空（${ct.xunKong.join('')}空），且月令${yWang}無氣、又不發動、亦無日月動爻生扶，是為「真空」，所問之事恐終成畫餅，${chuKong}。`
+      score -= 2
+    }
+    sections.push({ title: '旬空', text: kText })
+  }
+
+  // 4a. 占病專斷：古法「近病逢空即愈，久病逢空即死；近病逢沖即愈，久病逢沖即死」
+  //     逢空逢沖對近病是病氣消散之吉象，對久病卻是元氣潰散之凶象，與一般占法完全相反。
+  //     另以官鬼為病神（旺動則病重）、子孫為醫藥解神（旺則有藥可解）。
+  if (isBing) {
+    const jin = qt.bingType === '近病'
+    const bParts: string[] = []
+    const bianKong = target.isDong && !isFuShen && target.bian
+      && ct.xunKong.includes(target.bian.sb.branch)
+
+    if (yKong) {
+      bParts.push(jin
+        ? `用神${yBranch}落旬空，「近病逢空即愈」，病氣隨空而散，待出空之日（${yBranch}日或${chong(yBranch)}日）即見痊可`
+        : `用神${yBranch}落旬空，「久病逢空即死」，纏綿之疾而用神落空，是元氣已虛、根本動搖之象，出空之日反須格外提防`)
+      score += jin ? 2 : -2.5
+    } else if (bianKong) {
+      bParts.push(jin
+        ? `用神發動化出${target.bian!.sb.branch}而落旬空，病勢化空而去，「近病逢空即愈」，待${chong(target.bian!.sb.branch)}日沖空即可痊癒`
+        : `用神發動化出${target.bian!.sb.branch}而落旬空，久病而化空，病去無憑、元氣無所依歸，非吉象`)
+      score += jin ? 1.5 : -2
+    }
+
+    if (yRiChong) {
+      bParts.push(jin
+        ? `用神逢日辰${ct.day.branch}沖，「近病逢沖即愈」，沖散病氣，其病當退`
+        : `用神逢日辰${ct.day.branch}沖，「久病逢沖莫治」，久病之身再受沖激，元氣潰散，凶多吉少`)
+      score += jin ? 2 : -2.5
+    }
+
+    // 世爻六親：僅自占病（用神即世爻）時論之——世爻代表病者本身，官鬼持世為病纏其身，
+    // 父母持世主憂疑藥不對症。占他人之病時世爻代表問卦者而非病人，此法不適用。
+    if (qt.yongShen === '世爻') {
+      const shiLine = chart.lines[chart.shiPos - 1]
+      if (shiLine.liuqin === '官鬼') {
+        bParts.push('官鬼持世，病神纏繞己身，牽連難脫，占病最忌此象')
+        score -= 2
+      } else if (shiLine.liuqin === '父母') {
+        bParts.push('父母持世，主憂疑勞頓、藥不對症，古云「父爻持世，妙藥難醫」')
+        score -= 1.5
+      }
+    }
+
+    // 官鬼為病神（用神本身即官鬼者除外，如妻占夫病，此時官鬼是人不是病）
+    if (qt.yongShen !== '官鬼') {
+      const guiLine = pickByLiuqin(chart, '官鬼')
+      if (!guiLine) {
+        bParts.push('卦中官鬼不上卦，病無形象可尋，其病輕淺易解')
+        score += 1
+      } else if (guiLine.isXunKong) {
+        bParts.push(`病神官鬼（${posName[guiLine.pos - 1]}${guiLine.sb.branch}）落旬空，病氣自散，症候輕減`)
+        score += 1
+      } else if (guiLine.isDong || guiLine.wangShuai === '旺' || guiLine.wangShuai === '相') {
+        bParts.push(`病神官鬼（${posName[guiLine.pos - 1]}${guiLine.sb.branch}${guiLine.sb.element}）${guiLine.isDong ? '發動' : '得令'}，病勢正盛，未可輕忽`)
+        score -= guiLine.isDong ? 1.5 : 1
+      } else {
+        bParts.push(`病神官鬼（${posName[guiLine.pos - 1]}${guiLine.sb.branch}）休囚無力，病勢不烈`)
+        score += 0.5
+      }
+    }
+
+    // 子孫為醫藥解神（用神本身即子孫者除外，如占子病）
+    if (qt.yongShen !== '子孫') {
+      const ziLine = pickByLiuqin(chart, '子孫')
+      if (!ziLine) {
+        bParts.push('子孫不上卦，醫藥無門，難遇良醫')
+        score -= 1
+      } else if (ziLine.shiYing === '世') {
+        bParts.push(`子孫持世，醫藥得力、解神當令，多有不藥而癒或遇良醫之象`)
+        score += 2
+      } else if (ziLine.isXunKong) {
+        bParts.push(`子孫（醫藥）落旬空，藥石一時罔效，須待出空方得對症`)
+        score -= 1
+      } else if (ziLine.isDong || ziLine.wangShuai === '旺' || ziLine.wangShuai === '相') {
+        bParts.push(`子孫（${posName[ziLine.pos - 1]}${ziLine.sb.branch}${ziLine.sb.element}）${ziLine.isDong ? '發動' : '有氣'}，醫藥有效，可望得治`)
+        score += ziLine.isDong ? 1.5 : 1
+      } else {
+        bParts.push(`子孫（醫藥）休囚無力，用藥效驗有限`)
+        score -= 0.5
+      }
+    }
+
+    sections.push({ title: '占病', text: `此為${qt.bingType}之占。` + bParts.join('；') + '。' })
+  }
+
+  // 4b. 入墓：辰戌丑未為四墓庫，用神入墓主事情被困、藏而不顯
+  {
+    const muB = MU_BRANCH[yEl]
+    const muParts: string[] = []
+    // 墓庫本身落旬空則庫門洞開，不能收物，是為「空墓不受」，此時不作入墓論
+    const muKong = ct.xunKong.includes(muB)
+    const ruRiMu = ct.day.branch === muB
+    const huaMu = !!(target.isDong && !isFuShen && target.bian && target.bian.sb.branch === muB)
+    if (muKong && (ruRiMu || huaMu)) {
+      // 空墓不受：墓庫落空則庫門洞開，收不住物，入日墓與動而化墓皆不成立，故完全不計分
+      muParts.push(`用神雖遇${muB}墓地，然${yEl}之墓庫${muB}正落旬空，庫虛而門不閉，是為「空墓不受」，不作入墓論，反主開通而無拘束`)
+    } else if (ruRiMu) {
+      muParts.push(yYouQi
+        ? `用神${yBranch}${yEl}入日墓（日辰${ct.day.branch}為${yEl}之墓庫），幸而月令${yWang}有氣，墓中猶存生機，待${chong(muB)}日沖開墓庫，事乃能出`
+        : `用神${yBranch}${yEl}入日墓（日辰${ct.day.branch}為${yEl}之墓庫），且月令${yWang}無氣，深陷墓中難出，事被困而不顯，人事多有壓抑閉塞之象`)
+      score -= yYouQi ? 0.8 : 2
+    }
+    if (huaMu && !muKong) {
+      muParts.push(`用神發動反化出${target.bian!.sb.branch}墓庫，是為「動而化墓」，自投墓地，愈動愈受困，主事情做了反而把自己困住`)
+      score -= 2
+    }
+    if (muParts.length) sections.push({ title: '入墓', text: muParts.join('；') + '。' })
   }
 
   // 5. 伏神藏而不現
@@ -171,7 +444,114 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     }
   }
 
-  // 6. 動爻與變爻
+  // 6. 原神／忌神／仇神（六親固定生剋循環：父母生兄弟生子孫生妻財生官鬼生父母）
+  // 用神為伏神時關係較複雜，暫不展開此段，避免誤導
+  if (!isFuShen) {
+    const qLiuqin: LiuQin = qt.yongShen === '世爻' ? target.liuqin : qt.yongShen
+    const yuanCat = yuanShenOf(qLiuqin)
+    const jiCat = jiShenOf(qLiuqin)
+    const chouCat = chouShenOf(qLiuqin)
+    const yuanLine = pickByLiuqin(chart, yuanCat)
+    const jiLine = pickByLiuqin(chart, jiCat)
+    const chouLine = pickByLiuqin(chart, chouCat)
+
+    const parts: string[] = []
+    if (yuanLine) {
+      const strong = yuanLine.isDong || yuanLine.wangShuai === '旺' || yuanLine.wangShuai === '相'
+      if (strong && !yuanLine.isXunKong) {
+        parts.push(`原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）${yuanLine.isDong ? '發動來生，源頭活水，後續有力' : '得令而旺，助力扎實'}`)
+        score += yuanLine.isDong ? 1.5 : 1
+      } else if (yuanLine.isXunKong) {
+        parts.push(`原神${yuanCat}雖現但落旬空，助力暫時虛懸`)
+      } else {
+        parts.push(`原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）力弱，生扶有限`)
+        score += 0.2
+      }
+    } else {
+      parts.push(`原神${yuanCat}不上卦，用神助力無根，稍嫌單薄`)
+      score -= 0.5
+    }
+
+    if (jiLine) {
+      const strong = jiLine.isDong || jiLine.wangShuai === '旺' || jiLine.wangShuai === '相'
+      if (strong && !jiLine.isXunKong) {
+        parts.push(`忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）${jiLine.isDong ? '發動剋用神，事有阻力，慎防破敗' : '得令，暗中牽制用神'}`)
+        score -= jiLine.isDong ? 1.5 : 0.8
+        if (chouLine && (chouLine.isDong || chouLine.wangShuai === '旺' || chouLine.wangShuai === '相')) {
+          parts.push(`且仇神${chouCat}${chouLine.isDong ? '發動' : '得令'}生忌神，其勢更盛，尤須謹慎`)
+          score -= 0.8
+        }
+      } else if (jiLine.isXunKong) {
+        parts.push(`忌神${jiCat}雖現但落旬空，暫時無力為害`)
+      } else {
+        parts.push(`忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）力弱，難以妨事`)
+      }
+    }
+    sections.push({ title: '原神忌神', text: parts.join('；') + '。' })
+  }
+
+  // 7. 六合三合：日辰合用神、動爻合絆用神、卦中三合局
+  let heBan = false // 用神自身發動又與日辰相合，變化受牽制
+  if (!isFuShen) {
+    const heParts: string[] = []
+    if (he(yBranch) === ct.day.branch) {
+      if (target.isDong) {
+        heBan = true
+        heParts.push(`用神${yBranch}與日辰${ct.day.branch}相合，動而逢合為「合絆」，變化受牽制、事情暫時卡住，須待${chong(yBranch)}日沖開方能成事`)
+        score -= 1
+      } else {
+        heParts.push(`用神${yBranch}與日辰${ct.day.branch}相合，靜而逢合為「合起」，暗中得力，後續看好`)
+        score += 1
+      }
+    }
+    const otherDong = chart.lines.filter(l => l.isDong && l !== target)
+    for (const od of otherDong) {
+      if (he(od.sb.branch) === yBranch) {
+        heParts.push(`${posName[od.pos - 1]}${od.liuqin}${od.sb.branch}發動來合用神，事受牽絆羈絆，進度易生拖延`)
+        score -= 0.5
+      }
+    }
+    // 三合局：卦六爻中至少兩爻同屬一組，第三支可由日辰或月建補齊
+    // 若同時有多組結構完整，優先論與用神本身相關的一組，其次才依組別預設順序取
+    const formedGroups = SANHE_GROUPS.filter(group => {
+      const inGua = group.branches.filter(b => chart.lines.some(l => l.sb.branch === b))
+      const present = group.branches.filter(b => inGua.includes(b) || b === ct.day.branch || b === ct.month.branch)
+      return present.length === 3 && inGua.length >= 2
+    })
+    const sanHeGroup = formedGroups.find(g => g.branches.includes(yBranch)) ?? formedGroups[0]
+    if (sanHeGroup) {
+      // rel 以「局氣（me）對用神（other）」的方向解讀：'我剋'＝局氣剋用神（用神受害）、'剋我'＝用神剋局氣（用神費力但無大礙）
+      const rel = relation(sanHeGroup.element, yEl)
+      const involved = sanHeGroup.branches.includes(yBranch)
+      if (involved) {
+        if (rel === '我生' || rel === '比和') {
+          heParts.push(`卦中會成${sanHeGroup.element}局，用神身處局中，得局氣相助，力量倍增`)
+          score += 2
+        } else if (rel === '我剋') {
+          heParts.push(`卦中會成${sanHeGroup.element}局，用神身陷局中反受其剋，須防局勢不利`)
+          score -= 2
+        } else {
+          heParts.push(`卦中會成${sanHeGroup.element}局，用神身處局中但自身洩氣於局，力量分散`)
+          score -= 0.5
+        }
+      } else if (rel === '我生') {
+        heParts.push(`卦中會成${sanHeGroup.element}局，局氣生用神，外緣相助`)
+        score += 1
+      } else if (rel === '我剋') {
+        heParts.push(`卦中會成${sanHeGroup.element}局，局氣剋用神，外部壓力不小`)
+        score -= 1
+      } else if (rel === '剋我') {
+        heParts.push(`卦中會成${sanHeGroup.element}局，用神力剋局氣，雖可制之但費力周旋`)
+        score -= 0.3
+      } else if (rel === '生我') {
+        heParts.push(`卦中會成${sanHeGroup.element}局，用神生局氣，稍有耗損`)
+        score -= 0.3
+      }
+    }
+    if (heParts.length) sections.push({ title: '合處逢沖', text: heParts.join('；') + '。' })
+  }
+
+  // 8. 動爻與變爻
   const dongLine = chart.lines.find(l => l.isDong)
   if (dongLine) {
     const dongEl = dongLine.sb.element
@@ -192,6 +572,25 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
       } else {
         parts.push(`變爻${dongLine.bian!.sb.branch}${bEl}與用神無大礙，變動平順`)
         score += 0.5
+      }
+      // 進神／退神：化出同五行而地支順進為進神、逆退為退神
+      const jt = jinTuiShen(dongLine.sb.branch, dongLine.bian!.sb.branch)
+      if (jt === '進神') {
+        parts.push(`且${dongLine.sb.branch}化${dongLine.bian!.sb.branch}為「進神」，同氣而遞進，事情層層向前推展，愈往後愈盛`)
+        score += 1.5
+      } else if (jt === '退神') {
+        parts.push(`且${dongLine.sb.branch}化${dongLine.bian!.sb.branch}為「退神」，同氣而倒退，事情不進反退、有始無終，縱一時有成亦難久守`)
+        score -= 1.5
+      }
+      // 化絕：動爻化出自身五行之絕地，主動而無功
+      if (dongLine.bian!.sb.branch === JUE_BRANCH[dongEl]) {
+        parts.push(`又化出${dongLine.bian!.sb.branch}為${dongEl}之絕地，是為「化絕」，動而無功、氣盡力竭`)
+        score -= 1.5
+      }
+      // 化空：動爻化出之爻落旬空，主變化落不到實處
+      if (ct.xunKong.includes(dongLine.bian!.sb.branch)) {
+        parts.push(`且變爻${dongLine.bian!.sb.branch}落旬空，變化尚落不到實處，須待出空`)
+        score -= 0.5
       }
     } else {
       const rel2 = relation(dongEl, yEl)
@@ -217,11 +616,45 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
       const bRel = relation(bEl, dongEl)
       if (bRel === '我剋') parts.push(`且動爻受變爻回頭剋，其力後繼無穩`)
       else if (bRel === '我生') parts.push(`且動爻得變爻回頭生，其勢愈往後愈強`)
+      // 他爻動的進退神：影響該動爻本身的力道，再間接及於用神
+      const jt2 = jinTuiShen(dongLine.sb.branch, dongLine.bian!.sb.branch)
+      if (jt2 === '進神') {
+        parts.push(`該動爻${dongLine.sb.branch}化${dongLine.bian!.sb.branch}為「進神」，其力遞增`)
+        // 進神加強動爻本身，對用神的作用隨之放大（生用神則更吉、剋用神則更凶）
+        if (rel2 === '我生' || rel2 === '比和') score += 0.5
+        else if (rel2 === '我剋') score -= 0.8
+      } else if (jt2 === '退神') {
+        parts.push(`該動爻${dongLine.sb.branch}化${dongLine.bian!.sb.branch}為「退神」，其力遞減`)
+        if (rel2 === '我剋') score += 0.8 // 忌神退神，反為用神解圍
+        else if (rel2 === '我生' || rel2 === '比和') score -= 0.5
+      }
     }
     sections.push({ title: '動爻變爻', text: parts.join('；') + '。' })
   }
 
-  // 7. 世應
+  // 9. 六獸取象（描述性質，不計分）
+  if (!isFuShen) {
+    const flavorParts = [`用神臨${target.liushou}，主${LIUSHOU_FLAVOR[target.liushou]}`]
+    if (dongLine && dongLine !== target) {
+      flavorParts.push(
+        dongLine.liushou === target.liushou
+          ? `動爻同臨${dongLine.liushou}，性質加重`
+          : `動爻臨${dongLine.liushou}，另主${LIUSHOU_FLAVOR[dongLine.liushou]}`,
+      )
+    }
+    sections.push({ title: '六獸取象', text: flavorParts.join('；') + '。' })
+  }
+
+  // 9b. 爻位取象（描述性質，不計分）
+  {
+    const posParts = [`用神居${posName[target.pos - 1]}，${LINE_POSITION_IMAGERY[target.pos - 1]}`]
+    if (dongLine && dongLine.pos !== target.pos) {
+      posParts.push(`動爻居${posName[dongLine.pos - 1]}，${LINE_POSITION_IMAGERY[dongLine.pos - 1]}`)
+    }
+    sections.push({ title: '爻位取象', text: posParts.join('；') + '。' })
+  }
+
+  // 10. 世應
   if (qt.yongShen !== '世爻') {
     const shi = chart.lines[chart.shiPos - 1]
     const sRel = relation(yEl, shi.sb.element)
@@ -251,11 +684,62 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     sections.push({ title: '世應關係', text: sText })
   }
 
-  // 8. 應期
+  // 10b. 神煞：盤面已列出神煞，此處只論落在用神之上者，免得滿盤皆是反失重點。
+  //      神煞為輔，不主吉凶大局，故計分從輕。
+  {
+    const ss = chart.shenSha
+    const shenShaParts: string[] = []
+    if (ss.guiRen.includes(yBranch)) {
+      shenShaParts.push('用神臨天乙貴人，遇難得助、逢凶化吉，多有貴人從旁提攜')
+      score += 1
+    }
+    if (yBranch === ss.tianXi) {
+      shenShaParts.push('用神臨天喜，主喜慶之事臨門')
+      score += 0.5
+    }
+    if (yBranch === ss.ganLu) {
+      shenShaParts.push('用神臨干祿，主俸祿財位之氣，利於求職求財')
+      score += 0.5
+    }
+    if (yBranch === ss.yiMa) {
+      shenShaParts.push(qt.key === 'travel'
+        ? '用神臨驛馬，正合出行之問，主動身有期、行程可成'
+        : '用神臨驛馬，主奔波走動、事有遷變，靜守之事逢此則不安於位')
+      score += qt.key === 'travel' ? 1 : 0
+    }
+    if (yBranch === ss.taoHua) {
+      const isLove = qt.key === 'love-m' || qt.key === 'love-f'
+      shenShaParts.push(isLove
+        ? '用神臨桃花，正合情緣之問，主情意相牽、人緣有動'
+        : '用神臨桃花，主人緣情色之事牽動，所問之事恐涉私情')
+      score += isLove ? 1 : 0
+    }
+    if (yBranch === ss.yangRen) {
+      shenShaParts.push('用神臨羊刃，性剛而事烈，防刀傷血光與衝動壞事')
+      score -= 0.8
+    }
+    if (yBranch === ss.jieSha) {
+      shenShaParts.push('用神臨劫煞，主劫奪損耗、突發阻礙，財物尤須看守')
+      score -= 0.8
+    }
+    if (yBranch === ss.wangWang && (qt.key === 'travel' || qt.key === 'career')) {
+      shenShaParts.push('用神臨往亡，不利出行與興舉大事，宜避其鋒')
+      score -= 0.5
+    }
+    if (ss.guaShen && yBranch === ss.guaShen) {
+      shenShaParts.push('用神與卦身同支，所問之事正應其身，事體分明、與己切近')
+      score += 0.5
+    }
+    if (shenShaParts.length) sections.push({ title: '神煞', text: shenShaParts.join('；') + '。' })
+  }
+
+  // 11. 應期
   const heB = he(yBranch)
   const chongB = chong(yBranch)
   let yingQi: string
-  if (yKong) {
+  if (heBan) {
+    yingQi = `用神動而合絆，應期看${chongB}日（沖開合絆，事乃有成）；月份亦同此推。`
+  } else if (yKong) {
     yingQi = `用神旬空，應期先看出空：${yBranch}日（值日填實）或${chongB}日（沖空則實）。`
   } else if (score >= 1) {
     yingQi = `用神有氣，應期可看${yBranch}日（用神值日）或${heB}日（逢合之期）；月份亦同此推。`
@@ -264,11 +748,15 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   }
 
   // 判語
+  // 分級門檻經《增刪卜易》《卜筮正宗》53 則實占案例校準（見 calibration.ts）：
+  // 原本「平」帶寬達 ±1.5，導致 53 則中有 14 則被判為平，而古籍實占僅 1 則作平論——
+  // 卦本為決疑而起，模稜兩可的判語沒有意義。收窄平帶後方向命中率由 47.2% 升至 64.2%。
+  // 平帶保留 ±0.3，僅供生剋確實勢均力敵者使用。
   let verdict: LiuyaoReport['verdict']
   if (score >= 4) verdict = '大吉'
-  else if (score >= 1.5) verdict = '偏吉'
-  else if (score >= -1.5) verdict = '平'
-  else if (score >= -4) verdict = '偏凶'
+  else if (score >= 0.3) verdict = '偏吉'
+  else if (score > -0.3) verdict = '平'
+  else if (score > -4) verdict = '偏凶'
   else verdict = '大凶'
 
   return { yongShenDesc, yongShenLine: target, isFuShen, score, verdict, sections, yingQi }
