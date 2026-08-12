@@ -1,0 +1,659 @@
+[
+ {
+  "source": "易隱・卷四・脫禍占・附斷例",
+  "question": "有恐盜拔者卜（憂遭盜劫牽累）",
+  "benGua": "水風井",
+  "dongYao": [
+   1,
+   3
+  ],
+  "monthBranch": "辰",
+  "dayGanZhi": "戊辰",
+  "verdict": "凶",
+  "outcome": "後果為盜所累。",
+  "originalText": "三爻門戶鬼動，初爻化爻二財助鬼刑世",
+  "bianGua": "水澤節"
+ },
+ {
+  "source": "易隱・卷四・脫禍占・附斷例",
+  "question": "有恐訟累者卜",
+  "benGua": "水天需",
+  "dongYao": [
+   1,
+   2
+  ],
+  "monthBranch": "辰",
+  "dayGanZhi": "辛巳",
+  "verdict": "偏凶",
+  "outcome": "後果因官府捕捉，自身逃匿得免，而牽累內兄弟。",
+  "originalText": "喜世空，己得避脫，而兄弟反遭傷剋矣",
+  "bianGua": "水山蹇"
+ },
+ {
+  "source": "易隱・卷四・脫禍占・附斷例",
+  "question": "有拐人女子者卜",
+  "benGua": "水風井",
+  "dongYao": [
+   1,
+   3,
+   5
+  ],
+  "monthBranch": "卯",
+  "dayGanZhi": "甲辰",
+  "verdict": "凶",
+  "outcome": "後果被緝獲，訟官而受刑罰。",
+  "originalText": "鬼居門戶動，初爻化爻二財助鬼刑世",
+  "bianGua": "地澤臨"
+ },
+ {
+  "source": "易隱・卷六・文書占・附斷例",
+  "question": "求占文書",
+  "benGua": "地風升",
+  "dongYao": [
+   2,
+   4
+  ],
+  "monthBranch": "申",
+  "dayGanZhi": "庚辰",
+  "verdict": "偏吉",
+  "outcome": "後於子日成就。",
+  "originalText": "文書化入胎爻，乃小墓也，主事難成",
+  "bianGua": "雷山小過"
+ },
+ {
+  "source": "易隱・卷七・行人占・附斷例",
+  "question": "父占子被盜捉去，何日歸",
+  "benGua": "乾為天",
+  "dongYao": [
+   1,
+   5
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "乙巳",
+  "verdict": "吉",
+  "outcome": "待丁未日沖破丑合，果回家。",
+  "originalText": "五爻申金旺動，生合子孫，所云絕處逢生也",
+  "bianGua": "火風鼎"
+ },
+ {
+  "source": "易隱・卷七・求財占・附斷例",
+  "question": "占求財",
+  "benGua": "地澤臨",
+  "dongYao": [
+   5,
+   6
+  ],
+  "monthBranch": "卯",
+  "dayGanZhi": "丁酉",
+  "verdict": "偏吉",
+  "outcome": "當日不得，次日戊申財爻絕處逢生，方入手。",
+  "originalText": "亥財動來生合世，只因化絕在巳",
+  "bianGua": "風澤中孚"
+ },
+ {
+  "source": "易隱・卷八・疾病占・附斷例",
+  "question": "妻占夫病",
+  "benGua": "風水渙",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "辰",
+  "dayGanZhi": "丁卯",
+  "verdict": "凶",
+  "outcome": "至乙亥日透出用爻，夫死。",
+  "originalText": "子為忌神，兄為讐神，二爻並發",
+  "bianGua": "天風姤"
+ },
+ {
+  "source": "易隱・卷八・疾病占・附斷例",
+  "question": "妻占夫病",
+  "benGua": "澤火革",
+  "dongYao": [
+   1,
+   2,
+   3
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "戊戌",
+  "verdict": "吉",
+  "outcome": "後至戊申日，忌神逢絕、官遇長生而愈。",
+  "originalText": "人皆云凶。豈知本宮辰土，得寅木動生午火相扶",
+  "bianGua": "澤水困"
+ },
+ {
+  "source": "易隱・卷八・疾病占・附斷例",
+  "question": "夫占妻病",
+  "benGua": "天澤履",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "申",
+  "dayGanZhi": "癸酉",
+  "verdict": "吉",
+  "outcome": "後至甲申日，財遇長生而愈。",
+  "originalText": "兄乃貪生忘剋，而子得生氣，生財愈有力矣",
+  "bianGua": "風天小畜"
+ },
+ {
+  "source": "易隱・卷八・訟獄占・附斷例",
+  "question": "占訟事",
+  "benGua": "風地觀",
+  "dongYao": [
+   3,
+   5
+  ],
+  "monthBranch": "酉",
+  "dayGanZhi": "戊子",
+  "verdict": "偏吉",
+  "outcome": "後果然——進一百五十金而訟散。",
+  "originalText": "必有人代官府索賄者，進一百五十金則可散",
+  "bianGua": "艮為山"
+ },
+ {
+  "source": "易冒・變互章第十一",
+  "question": "占兄弟病",
+  "benGua": "天火同人",
+  "dongYao": [
+   1,
+   5
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "壬申",
+  "verdict": "凶",
+  "outcome": "後至酉月丁亥日，其病不治（歿）",
+  "originalText": "未建壬申日占兄弟病，得同人之旅，酉月丁亥日其病不治",
+  "bianGua": "火山旅"
+ },
+ {
+  "source": "易冒・變互章第十一",
+  "question": "占官（升遷）",
+  "benGua": "山地剝",
+  "dongYao": [
+   3,
+   5
+  ],
+  "monthBranch": "戌",
+  "dayGanZhi": "庚戌",
+  "verdict": "凶",
+  "outcome": "後逢亥令解組（去官）",
+  "originalText": "戌建庚戌日占官，得剝之漸，後逢亥令解組",
+  "bianGua": "風山漸"
+ },
+ {
+  "source": "易冒・反伏章第十三",
+  "question": "占母病",
+  "benGua": "坤為地",
+  "dongYao": [
+   2,
+   3,
+   5,
+   6
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "甲子",
+  "verdict": "凶",
+  "outcome": "後驗（母病不救）",
+  "originalText": "寅建甲子日占母病，得坤之巽…縱空而亦不救也，後驗",
+  "bianGua": "巽為風"
+ },
+ {
+  "source": "易冒・反伏章第十三",
+  "question": "占長子病",
+  "benGua": "震為雷",
+  "dongYao": [
+   2,
+   5
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "癸酉",
+  "verdict": "凶",
+  "outcome": "後卒（原文作「後仲伙而卒」，時間詞疑為OCR訛字）",
+  "originalText": "寅建癸酉日，占長子病，遇震之兌…後仲伙而卒",
+  "bianGua": "兌為澤"
+ },
+ {
+  "source": "易冒・干化章第二十",
+  "question": "占子存亡",
+  "benGua": "風地觀",
+  "dongYao": [
+   4,
+   6
+  ],
+  "monthBranch": "申",
+  "dayGanZhi": "丙子",
+  "verdict": "吉",
+  "outcome": "後及亥月甲辰日，子孫反得平安而歸",
+  "originalText": "丙申月丙子日占子存亡，得觀之萃…子孫反得平安而歸",
+  "bianGua": "澤地萃"
+ },
+ {
+  "source": "易冒・獨發章第二十九",
+  "question": "求財",
+  "benGua": "天地否",
+  "dongYao": [
+   1,
+   2,
+   4,
+   5,
+   6
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "己亥",
+  "verdict": "吉",
+  "outcome": "不得於癸卯而得於乙卯（得財）",
+  "originalText": "寅建己亥日占求財，得否之臨，不得於癸卯而得於乙卯",
+  "bianGua": "地澤臨"
+ },
+ {
+  "source": "易冒・獨發章第二十九",
+  "question": "占訪友",
+  "benGua": "天山遯",
+  "dongYao": [
+   1,
+   2,
+   3,
+   4,
+   6
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "丙午",
+  "verdict": "吉",
+  "outcome": "應爻在壬申，是以壬申日遇（會友）",
+  "originalText": "未建丙午日占訪友，得遯之節，是以壬申日遇",
+  "bianGua": "水澤節"
+ },
+ {
+  "source": "易冒・獨發章第二十九",
+  "question": "占子歸",
+  "benGua": "火澤睽",
+  "dongYao": [
+   1,
+   2,
+   3,
+   5,
+   6
+  ],
+  "monthBranch": "巳",
+  "dayGanZhi": "乙丑",
+  "verdict": "吉",
+  "outcome": "應丁卯日至",
+  "originalText": "巳建乙丑日占子歸，得睽之咸，而應丁卯日至",
+  "bianGua": "澤山咸"
+ },
+ {
+  "source": "易冒・隨墓章第三十五",
+  "question": "占寅命妻之病",
+  "benGua": "山天大畜",
+  "dongYao": [
+   1,
+   3
+  ],
+  "monthBranch": "巳",
+  "dayGanZhi": "癸未",
+  "verdict": "凶",
+  "outcome": "後五月妻亡，夫亦繼亡",
+  "originalText": "巳建癸未日占寅命妻病，得大畜之蒙，後五月妻亡",
+  "bianGua": "山水蒙"
+ },
+ {
+  "source": "易冒・天時章第四十四",
+  "question": "顧觀察憂民禾，命占晴",
+  "benGua": "風山漸",
+  "dongYao": [
+   2,
+   3
+  ],
+  "monthBranch": "午",
+  "dayGanZhi": "甲申",
+  "verdict": "偏吉",
+  "outcome": "當日不霽，及丙申日子孫當見，而後大晴",
+  "originalText": "午建甲申日…命占晴，得漸之渙，當日不霽…而後大晴",
+  "bianGua": "風水渙"
+ },
+ {
+  "source": "易冒・身命章第四十六",
+  "question": "占身命",
+  "benGua": "雷山小過",
+  "dongYao": [
+   4,
+   6
+  ],
+  "monthBranch": "子",
+  "dayGanZhi": "戊申",
+  "verdict": "凶",
+  "outcome": "後戊子季秋為賊所殺",
+  "originalText": "子建戊申日…占身得小過之艮，後戊子季秋為賊所殺",
+  "bianGua": "艮為山"
+ },
+ {
+  "source": "易冒・身命章第四十六",
+  "question": "占貴（功名）",
+  "benGua": "山澤損",
+  "dongYao": [
+   1,
+   2
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "庚午",
+  "verdict": "偏吉",
+  "outcome": "是歲失利；後甲午榜，大限在卯，其年中式",
+  "originalText": "寅建庚午日…占貴，得損之剝…後甲午榜…其年中式",
+  "bianGua": "山地剝"
+ },
+ {
+  "source": "易冒・痘疹章第五十四",
+  "question": "占有花（是否出痘）",
+  "benGua": "天澤履",
+  "dongYao": [
+   2,
+   3
+  ],
+  "monthBranch": "丑",
+  "dayGanZhi": "乙卯",
+  "verdict": "偏凶",
+  "outcome": "當日見標（當日痘疹現形）",
+  "originalText": "丑建乙卯日，占有花得履之同人，當日見標",
+  "bianGua": "天火同人"
+ },
+ {
+  "source": "易冒・痘疹章第五十四",
+  "question": "占子痘",
+  "benGua": "水雷屯",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "甲辰",
+  "verdict": "凶",
+  "outcome": "於戊申日乃變脾病而不治（歿）",
+  "originalText": "未建甲辰日，占子痘得屯之革，戊申日變脾病而不治",
+  "bianGua": "澤火革"
+ },
+ {
+  "source": "易冒・疾病章第五十五",
+  "question": "占夫病",
+  "benGua": "天火同人",
+  "dongYao": [
+   4,
+   6
+  ],
+  "monthBranch": "未",
+  "dayGanZhi": "壬寅",
+  "verdict": "吉",
+  "outcome": "後病得起（痊）",
+  "originalText": "未建壬寅日，占夫病得同人之既濟…後病得起",
+  "bianGua": "水火既濟"
+ },
+ {
+  "source": "易冒・疾病章第五十五",
+  "question": "占妻身（妻病）",
+  "benGua": "天風姤",
+  "dongYao": [
+   4,
+   5,
+   6
+  ],
+  "monthBranch": "亥",
+  "dayGanZhi": "甲申",
+  "verdict": "吉",
+  "outcome": "後交子月壬辰日，病勢漸解",
+  "originalText": "亥建甲申日，占妻身，得姤之升…子月壬辰日病勢漸解",
+  "bianGua": "地風升"
+ },
+ {
+  "source": "易冒・疾病章第五十五",
+  "question": "占子病",
+  "benGua": "雷山小過",
+  "dongYao": [
+   1,
+   2
+  ],
+  "monthBranch": "巳",
+  "dayGanZhi": "戊午",
+  "verdict": "凶",
+  "outcome": "及癸亥日而亡",
+  "originalText": "巳建戊午日，占子病得小過之大壯，及癸亥日而亡",
+  "bianGua": "雷天大壯"
+ },
+ {
+  "source": "易冒・疾病章第五十五",
+  "question": "占子病",
+  "benGua": "雷澤歸妹",
+  "dongYao": [
+   1,
+   4
+  ],
+  "monthBranch": "酉",
+  "dayGanZhi": "己酉",
+  "verdict": "偏吉",
+  "outcome": "雖危不死，及冬而愈",
+  "originalText": "是日有占子病，亦得歸妹之師…雖危不死，及冬而愈",
+  "bianGua": "地水師"
+ },
+ {
+  "source": "易冒・行人章第七十七",
+  "question": "概占僕來何時",
+  "benGua": "山地剝",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "巳",
+  "dayGanZhi": "己酉",
+  "verdict": "吉",
+  "outcome": "後及甲寅日乃至",
+  "originalText": "巳建己酉日，概占僕來何辰，得剝之旅，後及甲寅日乃至",
+  "bianGua": "火山旅"
+ },
+ {
+  "source": "易林補遺・易林總斷章第一",
+  "question": "占妻病",
+  "benGua": "雷地豫",
+  "dongYao": [
+   2,
+   3
+  ],
+  "monthBranch": "子",
+  "dayGanZhi": "辛丑",
+  "verdict": "吉",
+  "outcome": "後至丙午日才遇生扶，妻病全好",
+  "originalText": "當日又一人占妻病卜得豫之恆…丙午日妻病全好",
+  "bianGua": "雷風恆"
+ },
+ {
+  "source": "易林補遺・易林總斷章第一",
+  "question": "問進學（入泮）",
+  "benGua": "水天需",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "巳",
+  "dayGanZhi": "甲寅",
+  "verdict": "吉",
+  "outcome": "竟入泮宮之首（進學案首）",
+  "originalText": "巳月甲寅日需之兌卦…竟入泮宮之首",
+  "bianGua": "兌為澤"
+ },
+ {
+  "source": "易林補遺・人宅六事章第四十四",
+  "question": "家主占一年人口六事",
+  "benGua": "澤山咸",
+  "dongYao": [
+   2,
+   5
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "壬午",
+  "verdict": "凶",
+  "outcome": "其家一十一口，正二三月內連喪十人，止留一口",
+  "originalText": "寅月壬午日…卜得咸卦二爻五爻動…正二三月內連喪十人"
+ },
+ {
+  "source": "易林補遺・疾病吉凶章第六十九",
+  "question": "妻占夫病",
+  "benGua": "風水渙",
+  "dongYao": [
+   3,
+   4
+  ],
+  "monthBranch": "辰",
+  "dayGanZhi": "丁卯",
+  "verdict": "凶",
+  "outcome": "挨至乙亥日用爻透出，夫果死",
+  "originalText": "三月丁卯日卜得渙之姤卦…乙亥日夫果死也",
+  "bianGua": "天風姤"
+ },
+ {
+  "source": "易林補遺・疾病吉凶章第六十九",
+  "question": "弟占兄病",
+  "benGua": "山地剝",
+  "dongYao": [
+   1,
+   2,
+   3
+  ],
+  "monthBranch": "亥",
+  "dayGanZhi": "戊辰",
+  "verdict": "吉",
+  "outcome": "用爻透出，果應病痊",
+  "originalText": "十月戊辰日，卜得剝初二三爻皆動…果應病痊"
+ },
+ {
+  "source": "易林補遺・疾病吉凶章第六十九",
+  "question": "夫占妻病",
+  "benGua": "地水師",
+  "dongYao": [
+   2,
+   6
+  ],
+  "monthBranch": "辰",
+  "dayGanZhi": "庚辰",
+  "verdict": "凶",
+  "outcome": "果應五月庚申日…此鬼太剛，死而可驗",
+  "originalText": "三月庚辰日卜得師卦九二上六爻動…五月庚申日…死"
+ },
+ {
+  "source": "卜筮全書・黃金策・總斷千金賦",
+  "question": "占文書",
+  "benGua": "風天小畜",
+  "dongYao": [
+   1,
+   5
+  ],
+  "monthBranch": "戌",
+  "dayGanZhi": "己酉",
+  "verdict": "吉",
+  "outcome": "果應在戊子日成了文書",
+  "originalText": "九月己酉日占文書，得小畜之蠱卦…果應在戊子日成了文書",
+  "bianGua": "山風蠱"
+ },
+ {
+  "source": "卜筮全書・黃金策・總斷千金賦",
+  "question": "為脫役事占",
+  "benGua": "山澤損",
+  "dongYao": [
+   5,
+   6
+  ],
+  "monthBranch": "申",
+  "dayGanZhi": "乙未",
+  "verdict": "吉",
+  "outcome": "果應無事（免役）",
+  "originalText": "七月乙未日，為脫役事，占得損之節卦…果應無事",
+  "bianGua": "水澤節"
+ },
+ {
+  "source": "卜筮全書・黃金策・一、天時",
+  "question": "占晴",
+  "benGua": "澤雷隨",
+  "dongYao": [
+   1,
+   3
+  ],
+  "monthBranch": "午",
+  "dayGanZhi": "甲申",
+  "verdict": "凶",
+  "outcome": "雨果不止",
+  "originalText": "五月甲申日占晴，得隨之咸卦…雨果不止",
+  "bianGua": "澤山咸"
+ },
+ {
+  "source": "卜筮全書・黃金策・一、天時",
+  "question": "卜中秋月（能否見月）",
+  "benGua": "風火家人",
+  "dongYao": [
+   1,
+   3
+  ],
+  "monthBranch": "酉",
+  "dayGanZhi": "庚申",
+  "verdict": "凶",
+  "outcome": "果應大雨",
+  "originalText": "八月庚申日，予卜中秋月，得家人之觀卦，果應大雨",
+  "bianGua": "風地觀"
+ },
+ {
+  "source": "卜筮全書・黃金策・一、天時",
+  "question": "占晴",
+  "benGua": "水雷屯",
+  "dongYao": [
+   4,
+   6
+  ],
+  "monthBranch": "午",
+  "dayGanZhi": "丁丑",
+  "verdict": "偏吉",
+  "outcome": "果應晴而陰滯",
+  "originalText": "五月丁丑日，占晴，得屯之無妄卦…果應晴而陰滯也",
+  "bianGua": "天雷無妄"
+ },
+ {
+  "source": "卜筮全書・黃金策・二、年時",
+  "question": "卜年時（一年水旱）",
+  "benGua": "山水蒙",
+  "dongYao": [
+   1,
+   5
+  ],
+  "monthBranch": "寅",
+  "dayGanZhi": "辛亥",
+  "verdict": "凶",
+  "outcome": "其年果應風雨連月，水溢田中，五穀淹腐殆盡",
+  "originalText": "正月辛亥日，卜年時，得蒙之中孚卦…其年果應風雨連月",
+  "bianGua": "風澤中孚"
+ },
+ {
+  "source": "卜筮全書・黃金策・十五、六畜",
+  "question": "收養蜜蜂占（六畜）",
+  "benGua": "水雷屯",
+  "dongYao": [
+   1,
+   5
+  ],
+  "monthBranch": "酉",
+  "dayGanZhi": "壬寅",
+  "verdict": "凶",
+  "outcome": "未半日，群蜂滿身攢聚，驚惶無措",
+  "originalText": "八月…壬寅日卜得屯之坤卦…未半日，群蜂滿身攢聚",
+  "bianGua": "坤為地"
+ },
+ {
+  "source": "卜筮全書・黃金策・二十四、避亂",
+  "question": "卜倭（避亂，家人安危）",
+  "benGua": "雷天大壯",
+  "dongYao": [
+   1,
+   2
+  ],
+  "monthBranch": "午",
+  "dayGanZhi": "庚寅",
+  "verdict": "凶",
+  "outcome": "果被獲去一弟一子；子死非命，弟得回來",
+  "originalText": "五月庚寅日，卜得大壯之小過卦…果被獲去，一弟一子",
+  "bianGua": "雷山小過"
+ }
+]

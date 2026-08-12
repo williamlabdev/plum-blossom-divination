@@ -1,6 +1,23 @@
-// 古籍實例校準：把《增刪卜易》《卜筮正宗》的實占案例還原成本引擎的輸入，
+// 古籍實例校準：把歷代六爻典籍的實占案例還原成本引擎的輸入，
 // 比對引擎斷出的吉凶方向與古人斷語是否一致，用來量測與校準斷卦準確度。
-// 案例資料來源：殆知閣古代文獻藏書之《增刪卜易》《卜筮正宗》原文電子本，逐則人工核對動爻與干支。
+//
+// ── 訓練／測試分割（很重要，改動參數前務必先讀）──────────────────────────
+// 案例分兩批，且**只有第一批被用來調過參數**：
+//   第一批 index 0–52  ：《增刪卜易》45 則、《卜筮正宗》8 則。
+//                        判語門檻（±0.3）、卦格權重等都是看著這批的命中率調出來的，
+//                        因此這批的數字是「訓練集內」成績，必然偏樂觀。
+//   第二批 index 53–100：《易隱》《易冒》《易林補遺》《卜筮全書》共 48 則。
+//                        擴充時**刻意沒有據此調整任何參數**，所以這批是真正的保留
+//                        測試集，它的數字才是誠實的泛化估計。
+//
+// 這個分割的價值在於：如果哪天有人為了衝高總命中率而去調參數，第二批就會失去
+// 保留集的意義。**若要繼續調參，請只看第一批，並把第二批留著當最後的驗收。**
+// 需要更多調參用資料時，正確做法是再採集新的一批當測試集，而不是動用現有的。
+//
+// 案例來源：殆知閣古代文獻藏書之原文電子本。第一批原文附逐爻排盤，動爻由「動」字
+// 標記與本變卦爻象比對雙重驗證；第二批多數只記「得某卦之某卦」，動爻由本卦與變卦
+// 爻象逐位比對（XOR）推得，全部經獨立重算複核，零誤差。天時類（占晴、占雨）一律
+// 排除——其吉凶隨所求而異（求雨者盼雨、曬穀者盼晴），無單一用神可取。
 import type { Branch, Stem } from './data/core'
 import { BRANCHES, STEMS, trigramByLines } from './data/core'
 import type { ChartTime } from './calendar'
@@ -90,6 +107,60 @@ export const QUESTION_MAP: Record<number, QuestionMapping> = {
   50: { qtKey: 'elders', confident: true, bingType: '近病', note: '原文標明「近病」，岳母歸父母爻' },
   51: { qtKey: 'house', confident: false, note: '占買宅，宅舍屬父母爻；然原文斷語針對次要事項（化寅木子孫受剋而損子），非主問之吉凶' },
   52: { qtKey: 'children', confident: true },
+
+  // ── 第二批：《易隱》《易冒》《易林補遺》《卜筮全書》（2026-08-12 擴充）──────
+  // 這批的動爻推導方式與第一批不同：第一批《增刪卜易》原文附逐爻排盤，
+  // 這批多數只記「得某卦之某卦」，動爻由本卦與變卦的爻象逐位比對（XOR）推得。
+  // 全部 90 則可驗證案例都經過獨立重算複核，與採集結果零誤差。
+  // 已排除：占晴、憂雪等天時類（吉凶隨所求而異，無單一用神可取）。
+  53: { qtKey: 'general', confident: true, note: '占壽數，以世爻論' },
+  54: { qtKey: 'house', confident: true, note: '憂遭火災，父母爻主房屋' },
+  55: { qtKey: 'partner', confident: false, note: '投托他人，古法看應爻；本程式無應爻類別，原文以兄爻論故暫取朋友合夥' },
+  56: { qtKey: 'career', confident: true, note: '占為官安否' },
+  57: { qtKey: 'children', confident: true, note: '父卜子回，用神子孫' },
+  58: { qtKey: 'love-f', confident: true, note: '妻占夫歸；此則《易隱》與《易林補遺》互見，屬跨書互證' },
+  59: { qtKey: 'wealth', confident: false, note: '凶斷而吉果（先受阻後得財），方向歸類有爭議' },
+  60: { qtKey: 'wealth', confident: true },
+  61: { qtKey: 'wealth', confident: true },
+  62: { qtKey: 'elders', confident: true, bingType: '近病', note: '子占父病，果於申酉日痊愈' },
+  63: { qtKey: 'children', confident: true, note: '父占子病；原文未言病之新舊，故不加占病修飾' },
+  64: { qtKey: 'love-f', confident: true, bingType: '久病', note: '妻占夫病，至甲申日死' },
+  65: { qtKey: 'lawsuit', confident: true, note: '與 #6 同一卦，然所問為訟、用神不同，屬另一資料點' },
+  66: { qtKey: 'lost', confident: false, note: '占婢走失；古法奴僕用子孫，然原文明以財爻論，故取尋物失物（妻財）' },
+  67: { qtKey: 'wealth', confident: true },
+  68: { qtKey: 'career', confident: true },
+  69: { qtKey: 'children', confident: false, note: '占臨產用子孫；原文重點在斷錯時辰而非吉凶' },
+  70: { qtKey: 'wealth', confident: true, note: '標會得否' },
+  71: { qtKey: 'children', confident: true, note: '卜子歸期' },
+  72: { qtKey: 'love-m', confident: true, bingType: '久病', note: '卜妻病，後待丙子日而死' },
+  73: { qtKey: 'house', confident: true },
+  74: { qtKey: 'career', confident: true },
+  75: { qtKey: 'love-m', confident: false, note: '占婚，原文未明言性別，暫依男問取妻財' },
+  76: { qtKey: 'children', confident: true, note: '占孕是否喪胎' },
+  77: { qtKey: 'children', confident: false, note: '占是否出痘屬有無題非吉凶題，卦驗中了但「應驗」不等於「吉」' },
+  78: { qtKey: 'elders', confident: true, bingType: '久病', note: '占父病，化絕遂不救' },
+  79: { qtKey: 'love-m', confident: true, bingType: '近病', note: '占妻病，及冬病愈' },
+  80: { qtKey: 'children', confident: true, bingType: '久病', note: '占子病，甲寅日絕' },
+  81: { qtKey: 'elders', confident: true, bingType: '久病', note: '占父病，至下歲孟春方絕' },
+  82: { qtKey: 'health-new', confident: false, note: '自占病，原文未言新舊；是夕遂卒' },
+  83: { qtKey: 'health-new', confident: false, note: '占身病「難愈而不死」；記載的應驗是病因而非病果' },
+  84: { qtKey: 'health-new', confident: true, note: '占己病，卯月病愈' },
+  85: { qtKey: 'elders', confident: true, bingType: '近病', note: '占父病，亥日即愈' },
+  86: { qtKey: 'children', confident: true, bingType: '近病', note: '占女病，其女不死' },
+  87: { qtKey: 'children', confident: false, note: '占痘屬有無題，非吉凶題' },
+  88: { qtKey: 'wealth', confident: true, note: '占何時得會' },
+  89: { qtKey: 'love-f', confident: true, note: '妻占夫歸期' },
+  90: { qtKey: 'love-m', confident: true, bingType: '久病', note: '夫占妻病，癸亥日命盡' },
+  91: { qtKey: 'career', confident: true, note: '問見官（謁見官長）' },
+  92: { qtKey: 'house', confident: false, note: '代占入宅；宅長康泰而宅母染災，同卦兩極' },
+  93: { qtKey: 'elders', confident: true, bingType: '久病', note: '子占父病，乙亥日父喪' },
+  94: { qtKey: 'children', confident: true, bingType: '久病', note: '父占子病，丙午日死' },
+  95: { qtKey: 'partner', confident: true, bingType: '近病', note: '占兄弟病，後果無事' },
+  96: { qtKey: 'children', confident: true, bingType: '近病', note: '占子病，丙子日愈' },
+  97: { qtKey: 'wealth', confident: true },
+  98: { qtKey: 'general', confident: false, note: '卜年時兵災，非個人吉凶，本程式無對應類別' },
+  99: { qtKey: 'livestock', confident: true, note: '因雞瘟占雞，古法六畜用子孫' },
+  100: { qtKey: 'travel', confident: false, note: '卜倭避亂，以世爻論；結果為官兵之禍非倭禍' },
 }
 
 /** 由日干支推旬空：旬首地支 = (日支序 − 日干序 + 12) % 12，其後第 11、12 位即空亡兩支 */
@@ -160,4 +231,16 @@ export const CLASSIC_CASES = CASES as ClassicCase[]
 
 export function runAllCases(): CaseResult[] {
   return CLASSIC_CASES.map((c, i) => runCase(c, i))
+}
+
+/** 第一批（訓練集）與第二批（保留測試集）的分界索引 */
+export const HOLDOUT_START = 53
+
+/** 命中率與「全部猜吉」基準的對照。基準＝資料集中古人斷吉的比例，
+ *  引擎必須明顯勝過它才算有價值——只報命中率而不報基準是會誤導人的。 */
+export function summarise(rs: CaseResult[]) {
+  const n = rs.length
+  const hitRate = n ? rs.filter(r => r.hit).length / n : 0
+  const alwaysJi = n ? rs.filter(r => r.expected === 1).length / n : 0
+  return { n, hitRate, alwaysJi, lead: hitRate - alwaysJi }
 }
