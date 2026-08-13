@@ -137,6 +137,32 @@ const LINE_POSITION_IMAGERY: string[] = [
   '上爻處事之極，如頂如首，主年高之人或事情終局',
 ]
 
+/** 用神多現時的取捨。這一段刻意不用「取旺相、取不破」的直覺排序，因為兩部典籍都指名
+ *  推翻了它：
+ *
+ *  《增刪卜易・兩現章第三十二》：「用神兩現，如占父母卦中兩爻父母者是也。舍其休囚，用其
+ *  旺相；舍其靜爻，而用動爻；舍其月破，而用不破；舍其旬空，用其不空；舍其被傷，用其不傷。
+ *  **此古法也。得其驗者，應乎旬空月破——舍其不空，而用旬空；舍其不破，而用月破。**」
+ *
+ *  《卜筮正宗・第十七問「用神多現，何以取之」》：「予屢驗者，舍其閒爻而用持世，舍其無權
+ *  而用月日，舍其不破而用月破，舍其不空而用旬空。**天機盡洩於有病之間，斷法總在醫藥之處。**」
+ *
+ *  兩書排序一致：持世 → 臨月建日建 → 月破 → 旬空。動爻與旺相只是這四項都不成立時的墊底，
+ *  因為它們正是野鶴所謂「此古法也」而不取的那一套。 */
+function pickYongShen(cands: LineInfo[], ct: ChartTime): LineInfo {
+  const linYueRi = (l: LineInfo) => l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch
+  return cands.find(l => l.shiYing === '世')
+    ?? cands.find(l => l.isYuePo)
+    ?? cands.find(l => l.isXunKong)
+    ?? cands.find(linYueRi)
+    ?? cands.find(l => l.isDong)
+    ?? cands.find(l => l.wangShuai === '旺' || l.wangShuai === '相')
+    ?? cands[0]
+}
+
+/** 原神／忌神／仇神的選取。刻意**不**沿用 pickYongShen 的古法排序——兩部典籍講的都是
+ *  「用神兩現」，對原神忌神並無此說；實測把 pickYongShen 套用於此對第一批命中率毫無影響
+ *  （75.5% 不變），既無依據也無效益，故維持原本的動爻優先。 */
 function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
   const cands = chart.lines.filter(l => l.liuqin === lq)
   if (cands.length === 0) return undefined
@@ -157,11 +183,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const cands = chart.lines.filter(l => l.liuqin === qt.yongShen)
     if (cands.length === 1) target = cands[0]
     else if (cands.length > 1) {
-      // 多現：先取持世，次取動爻，再取月日有氣者
-      target = cands.find(l => l.shiYing === '世')
-        ?? cands.find(l => l.isDong)
-        ?? cands.find(l => l.wangShuai === '旺' || l.wangShuai === '相')
-        ?? cands[0]
+      target = pickYongShen(cands, ct)
     } else {
       // 用神不上卦 → 取伏神
       const fuLine = chart.lines.find(l => l.fuShen?.liuqin === qt.yongShen)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CLASSIC_CASES, HOLDOUT_START, QUESTION_MAP, direction, runAllCases, summarise, xunKongOf } from './calibration'
+import { CLASSIC_CASES, HOLDOUT_START, QUESTION_MAP, direction, runAllCases, runCase, summarise, xunKongOf } from './calibration'
 import { findQuestionType } from './interpret'
 
 describe('古籍實例校準（歷代六爻典籍 101 則實占案例）', () => {
@@ -48,6 +48,17 @@ describe('古籍實例校準（歷代六爻典籍 101 則實占案例）', () =>
       expect(r.report.yongShenLine).not.toBeNull()
       expect(r.report.sections.length).toBeGreaterThan(0)
     }
+  })
+
+  // 用神多現的取捨是少數能被「古人指名了哪一爻」直接驗證的規則，不必靠命中率反推。
+  // 《增刪卜易・兩現章》明言取旺相不破的舊說「此古法也」，而「得其驗者，應乎旬空月破」；
+  // 案例 #37 原文正以「未土子孫臨月破」斷不宜買馬——古人捨了發動又臨月建的初爻丑土。
+  // 這一則釘住的是「引擎選到與古人相同的爻」，比方向命中更強的證據，別讓它退回動爻優先。
+  it('用神多現依古法取有病之爻：#37 占買馬取五爻月破之未土子孫', () => {
+    const r = runCase(CLASSIC_CASES[37], 37)
+    expect(r.report.yongShenLine?.pos).toBe(5)
+    expect(r.report.yongShenLine?.sb.branch).toBe('未')
+    expect(r.report.yongShenLine?.isYuePo).toBe(true)
   })
 
   // ── 準確度防線 ────────────────────────────────────────────────

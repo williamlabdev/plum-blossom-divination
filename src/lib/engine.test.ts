@@ -587,8 +587,10 @@ describe('卦格：六沖卦與六合卦，且吉凶隨所問之事反轉', () =
 
 describe('神煞納入斷語（原本盤面有顯示但解卦完全沒引用）', () => {
   it('用神臨天乙貴人時，斷語應指出逢凶化吉', () => {
-    // 甲日貴人在丑未；取用神為丑或未之卦
-    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    // 甲戊庚日貴人皆在丑未。此卦兄弟兩現（三爻丑土、上爻戌土），故不可用甲子日——
+    // 甲子旬空戌亥，依《增刪卜易・兩現章》「舍其不空而用旬空」會改取上爻戌土而落空貴人。
+    // 改用戊子日（貴人同在丑未，旬空午未），兩爻俱不空不破，方能穩定取到三爻丑土。
+    const ct = mkCt('申', '戊', '子', ['午', '未'])
     const cast = castManual(1, 2, 2) // 天澤履，三爻丑土兄弟
     const chart = buildNajiaChart(cast.ben, cast.dong, ct)
     const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'partner')!)
