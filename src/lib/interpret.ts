@@ -1,12 +1,12 @@
 // 六爻斷卦引擎：依問題類型取用神，以生剋旺衰、旬空月破、動變回頭、原忌仇神、合沖斷吉凶
 import type { Branch, Element, LiuQin, LiuShou } from './data/core'
 import {
-  BRANCH_ELEMENT, JUE_BRANCH, MU_BRANCH, SANHE_GROUPS,
+  BRANCH_ELEMENT, BRANCHES, JUE_BRANCH, MU_BRANCH, SANHE_GROUPS,
   chong, chouShenOf, he, jiShenOf, jinTuiShen, relation, yuanShenOf,
 } from './data/core'
 import type { ChartTime } from './calendar'
-import type { LineInfo, NajiaChart, TimeFrame } from './najia'
-import { frameOf, timingOf } from './najia'
+import type { LineInfo, NajiaChart, TimeFrame, WangShuai } from './najia'
+import { chartAt, frameOf, timingOf, withMonthBranch } from './najia'
 
 /** 占病的新舊之別。古法以百日為界，斷法完全相反：
  *  「近病逢空即愈，久病逢空即死；近病逢沖即愈，久病逢沖即死」——
@@ -98,6 +98,10 @@ export function findQuestionType(key: string): QuestionType | undefined {
 export type AskIntent = '吉凶' | '時機'
 
 export type Verdict = '大吉' | '偏吉' | '平' | '偏凶' | '大凶'
+
+/** 偏吉起點，亦即「用神有氣」的界線。應期敘述與判語門檻共用同一條線，
+ *  否則會出現「判偏吉、應期卻說用神偏弱」的矛盾。時點推演也以它認定「轉吉」。 */
+export const JI_THRESHOLD = 0.3
 
 export interface ReportSection {
   title: string
@@ -989,7 +993,6 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
   // 強弱門檻與下方判語門檻共用同一個界線，否則會出現「判偏吉、應期卻說用神偏弱」的矛盾。
   const heB = he(yBranch)
   const chongB = chong(yBranch)
-  const JI_THRESHOLD = 0.3 // 偏吉起點，亦即「用神有氣」的界線
   let yingQi: string
   if (heBan) {
     yingQi = `用神動而合絆，應期看${chongB}日（沖開合絆，事乃有成）；月份亦同此推。`
@@ -1020,6 +1023,88 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
     intent, verdict: intent === '時機' ? null : verdict,
     sections, yingQi, decisive,
   }
+}
+
+// ── 未來時點推演 ────────────────────────────────────────────────
+/** 同一卦在某個月建下的斷卦結果。`monthsAhead` 0 為當月，其後依地支順序遞推。 */
+export interface MonthPoint {
+  monthBranch: Branch
+  monthsAhead: number
+  score: number
+  verdict: Verdict
+  /** 用神在該月的旺衰。伏神為用神時論的是伏神自己的地支。 */
+  wangShuai: WangShuai
+}
+
+export interface Timeline {
+  points: MonthPoint[]
+  /** 分數最高的月份。同分時取最早的一個——應期取近不取遠。 */
+  best: MonthPoint
+  /** 當下未達偏吉、而未來十二月內首次轉為偏吉以上的月份；沒有則為 null。 */
+  turning: MonthPoint | null
+  text: string
+}
+
+/** 把同一卦推到未來十二個月，各斷一次。
+ *
+ *  古法斷應期本就論月：「用神休囚，待生旺之月而成」「月破者，待出破之月」。
+ *  引擎原本只斷當下一個時點，遇到「用神現在無氣、但某月得令則成」的卦
+ *  （《增刪卜易》「官動化進神，秋來得令必遷」一類）就只能一律斷凶。
+ *
+ *  **這是敘述層，不參與計分**：`analyzeAt` 一字未動，校準數字結構上不可能因此改變——
+ *  這一點本身就是它安全的證明。要不要讓推演影響吉凶是另一個決策，
+ *  而那個決策必須先有證據（見 CLAUDE.md「未來時點推演」）。
+ *
+ *  推演一律以「問吉凶」跑：要比較的是各月的吉凶強弱，與使用者問的是吉凶還是時機無關。
+ *  日柱與旬空刻意不隨月份改變，理由見 `withMonthBranch`。 */
+export function projectMonths(chart: NajiaChart, frame: TimeFrame, qt: QuestionType): Timeline | null {
+  const here = analyzeAt(chart, frame, qt)
+  if (!here.yongShenLine) return null // 用神不上卦且無伏神可取，無從推演
+  const yBranch = here.isFuShen ? here.yongShenLine.fuShen!.sb.branch : here.yongShenLine.sb.branch
+
+  const start = BRANCHES.indexOf(frame.monthBranch)
+  const points: MonthPoint[] = []
+  for (let k = 0; k < 12; k++) {
+    const monthBranch = BRANCHES[(start + k) % 12]
+    const f = withMonthBranch(frame, monthBranch)
+    // 卦盤與斷語必須走同一個 frame，否則旺衰會分岔（engine.test.ts 有測試釘住等價性）
+    const r = k === 0 ? here : analyzeAt(chartAt(chart, f), f, qt)
+    points.push({
+      monthBranch, monthsAhead: k, score: r.score, verdict: r.verdict!,
+      wangShuai: timingOf(yBranch, f).wangShuai,
+    })
+  }
+
+  // 同分取最早：應期取近不取遠，古法問「何時成」答的是最近的那個時點
+  const best = points.reduce((a, b) => (b.score > a.score ? b : a))
+  const turning = here.score >= JI_THRESHOLD
+    ? null
+    : points.find(p => p.monthsAhead > 0 && p.score >= JI_THRESHOLD) ?? null
+
+  // 旺相為有氣、休囚死為無氣。敘述必須把「用神得令」與「分數轉吉」分開講：
+  // 有些卦轉吉不是因為用神得令，而是忌神在該月受制——把兩者綁成因果會講出錯的道理。
+  const youQi = (w: WangShuai) => w === '旺' || w === '相'
+  const nowDesc = `用神當下月令${points[0].wangShuai}（${youQi(points[0].wangShuai) ? '有氣' : '無氣'}）`
+
+  let text: string
+  if (turning) {
+    text = youQi(turning.wangShuai)
+      ? `${nowDesc}，推至${turning.monthBranch}月轉${turning.wangShuai}而得令，其勢轉${turning.verdict}——`
+        + `古法「用神休囚，待生旺之月而成」，此事非不成，遲耳，轉機在${turning.monthBranch}月。`
+      : `${nowDesc}，推至${turning.monthBranch}月用神雖仍${turning.wangShuai}，然通盤之勢轉${turning.verdict}`
+        + `（其時忌神受制或原神得力，非用神自身得令），轉機在${turning.monthBranch}月。`
+  } else if (here.score >= JI_THRESHOLD) {
+    text = best.monthsAhead === 0
+      ? `${nowDesc}，正當其時，十二月中以此月為最盛。`
+      : `${nowDesc}，事已可成；十二月中又以${best.monthBranch}月（用神${best.wangShuai}）為最盛，其時更得力。`
+  } else if (best.monthsAhead > 0 && best.score > points[0].score) {
+    text = `${nowDesc}，十二月中以${best.monthBranch}月（用神${best.wangShuai}）稍強，`
+      + `然終未轉吉——待時而已不足以成事，須另有生扶。`
+  } else {
+    text = `${nowDesc}，推遍十二月未見轉機，吉凶仍以當下所斷為準。`
+  }
+
+  return { points, best, turning, text }
 }
 
 // 生我者（用神之原神五行）

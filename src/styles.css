@@ -294,6 +294,26 @@ table.pan tr:last-child td { border-bottom: none; }
 .extra-block[open] > summary::before { content: '▾ '; }
 .extra-block > summary:hover { color: var(--accent); }
 
+/* 時點推演：十二個月各一格，色階沿用判語色 */
+.timeline {
+  display: grid; grid-template-columns: repeat(12, 1fr);
+  gap: 2px; margin: 8px 0 4px;
+}
+.tl-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 5px 0; border-radius: 3px;
+  font-size: 11px; line-height: 1.2; color: #fff;
+}
+.tl-cell.level-大吉 { background: var(--accent); }
+.tl-cell.level-偏吉 { background: var(--jade); }
+.tl-cell.level-平 { background: var(--gold); }
+.tl-cell.level-偏凶 { background: #7a5c8a; }
+.tl-cell.level-大凶 { background: #3d3a36; }
+.tl-cell.tl-now { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tl-month { font-weight: 600; }
+.tl-wang { opacity: .8; font-size: 10px; }
+.tl-note { font-size: 11px; color: var(--ink-soft); }
+
 /* 提示卡（例如時間起卦同時辰必得同卦） */
 .note-card {
   font-size: 13px; line-height: 1.7; color: var(--ink-soft);

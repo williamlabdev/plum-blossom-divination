@@ -3,8 +3,8 @@ import './styles.css'
 import { GLOSSARY } from './lib/glossary'
 import { getChartTime, type ChartTime } from './lib/calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, randomInt, type CastResult, type Hexagram } from './lib/casting'
-import { buildNajiaChart, type NajiaChart } from './lib/najia'
-import { analyzeLiuyao, findQuestionType, QUESTION_GROUPS, QUESTION_TYPES, type AskIntent, type LiuyaoReport, type QuestionType } from './lib/interpret'
+import { buildNajiaChart, frameOf, type NajiaChart } from './lib/najia'
+import { analyzeLiuyao, findQuestionType, projectMonths, QUESTION_GROUPS, QUESTION_TYPES, type AskIntent, type LiuyaoReport, type QuestionType, type Timeline } from './lib/interpret'
 import { analyzeMeihua, type MeihuaAnalysis } from './lib/meihua'
 import { TRIGRAMS } from './lib/data/core'
 import {
@@ -19,6 +19,8 @@ interface Reading {
   cast: CastResult
   chart: NajiaChart
   report: LiuyaoReport
+  /** 未來十二個月各斷一次的結果。用神不上卦且無伏神可取時為 null。 */
+  timeline: Timeline | null
   meihua: MeihuaAnalysis
   qt: QuestionType
 }
@@ -92,8 +94,10 @@ function compute(input: CastInput): Reading {
   // 舊紀錄無 intent、或 localStorage 內容被竄改成非法值 → 一律當成問吉凶
   const intent: AskIntent = input.intent === '時機' ? '時機' : '吉凶'
   const report = analyzeLiuyao(chart, ct, qt, intent)
+  // 時點推演是敘述層，不影響 report 的任何欄位（見 interpret.ts 的 projectMonths）
+  const timeline = projectMonths(chart, frameOf(ct), qt)
   const meihua = analyzeMeihua(cast, ct)
-  return { input, ct, cast, chart, report, meihua, qt }
+  return { input, ct, cast, chart, report, timeline, meihua, qt }
 }
 
 // ── 卦圖 ──────────────────────────────────────
@@ -234,6 +238,25 @@ function Analysis({ r }: { r: Reading }) {
         ))}
         {r.report.intent === '吉凶' && (
           <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term><AutoTerms text={r.report.yingQi} /></div>
+        )}
+        {/* 問時機者這一段就是答案，預設展開；問吉凶者它是補充，收合。
+            推演不影響上面的判語——標題明講，免得讀者以為吉凶是「算未來十二個月」得出的 */}
+        {r.timeline && (
+          <details className="extra-block" open={r.report.intent === '時機'}>
+            <summary>時點推演（同一卦推至未來十二個月，不影響上面的吉凶判定）</summary>
+            <div className="section"><AutoTerms text={r.timeline.text} /></div>
+            <div className="timeline">
+              {r.timeline.points.map(p => (
+                <div key={p.monthBranch}
+                  className={'tl-cell level-' + p.verdict + (p.monthsAhead === 0 ? ' tl-now' : '')}
+                  title={`${p.monthBranch}月：用神${p.wangShuai}，${p.verdict}（${p.score}）`}>
+                  <span className="tl-month">{p.monthBranch}</span>
+                  <span className="tl-wang">{p.wangShuai}</span>
+                </div>
+              ))}
+            </div>
+            <div className="tl-note">左起為本月，依地支順序推十二個月；框線者為當下。日柱與旬空不隨月份改變。</div>
+          </details>
         )}
         {/* 只描述性質、不影響吉凶的段落另置一區並預設收合，
             免得與決定吉凶的段落視覺等權，讀完仍不知道結論從何而來 */}

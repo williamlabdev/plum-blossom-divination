@@ -5,7 +5,7 @@ import { castByNumbers, castByTime, castManual, drawRandom, hexagramFromLines, r
 import type { Branch, Stem } from './data/core'
 import { BRANCHES, chouShenOf, jiShenOf, yuanShenOf } from './data/core'
 import { buildNajiaChart, chartAt, frameOf, guaXingOf, lineAt, timingOf, withMonthBranch } from './najia'
-import { QUESTION_GROUPS, QUESTION_TYPES, analyzeAt, analyzeLiuyao, findQuestionType } from './interpret'
+import { JI_THRESHOLD, QUESTION_GROUPS, QUESTION_TYPES, analyzeAt, analyzeLiuyao, findQuestionType, projectMonths } from './interpret'
 import { ZHOUYI } from './data/zhouyi'
 import { GLOSSARY } from './glossary'
 
@@ -963,6 +963,53 @@ describe('時間框架：旺衰與月破旬空可帶任意月建重算（backlog
     expect(moved.liuqin).toBe(chart.lines[1].liuqin)
     expect(moved.isDong).toBe(chart.lines[1].isDong)
     expect(moved.bian).toEqual(chart.lines[1].bian)
+  })
+
+  it('時點推演：當月那一格必等於當下所斷，十二格依地支順序且日柱旬空不動', () => {
+    // 推演的第一格是自我檢查——它走的是 chartAt 重算的路徑，若與直接斷當下不同，
+    // 表示整盤重算漏了某個欄位，後面十一格算出來的東西也就不能拿來跟當下比較。
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    const frame = frameOf(ct)
+    for (const key of ['wealth', 'career', 'health-new', 'partner']) {
+      const qt = QUESTION_TYPES.find(q => q.key === key)!
+      for (let n = 0; n < 64; n += 7) {
+        const lines = [0, 0, 0, 0, 0, 0]
+        for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+        const chart = buildNajiaChart(hexagramFromLines(lines), 2, ct)
+        const tl = projectMonths(chart, frame, qt)
+        if (!tl) continue // 用神不上卦且無伏神可取
+        expect(tl.points).toHaveLength(12)
+        expect(tl.points[0].monthBranch).toBe('申')
+        expect(tl.points[0].score).toBe(analyzeLiuyao(chart, ct, qt).score)
+        expect(tl.points.map(p => p.monthBranch)).toEqual(
+          Array.from({ length: 12 }, (_, k) => BRANCHES[(BRANCHES.indexOf('申') + k) % 12]))
+        expect(tl.best.score).toBe(Math.max(...tl.points.map(p => p.score)))
+      }
+    }
+  })
+
+  it('時點推演：轉機只在當下未達偏吉時出現，且取最早轉吉的那個月', () => {
+    const ct = mkCt('子', '丁', '巳', ['戌', '亥'])
+    const frame = frameOf(ct)
+    let sawTurning = 0
+    for (const key of ['wealth', 'career', 'children', 'elders']) {
+      const qt = QUESTION_TYPES.find(q => q.key === key)!
+      for (let n = 0; n < 64; n++) {
+        const chart = buildNajiaChart(hexagramFromLines(Array.from({ length: 6 }, (_, i) => (n >> i) & 1)), 4, ct)
+        const tl = projectMonths(chart, frame, qt)
+        if (!tl) continue
+        const now = tl.points[0].score
+        const firstUp = tl.points.find(p => p.monthsAhead > 0 && p.score >= JI_THRESHOLD) ?? null
+        expect(tl.turning).toEqual(now >= JI_THRESHOLD ? null : firstUp)
+        if (tl.turning) {
+          sawTurning++
+          // 轉機月的敘述必須與該月實際斷出的判語一致，否則報告會自相矛盾
+          expect(tl.text).toContain(tl.turning.monthBranch)
+          expect(tl.text).toContain(tl.turning.verdict)
+        }
+      }
+    }
+    expect(sawTurning).toBeGreaterThan(0) // 這批卦裡確實有「待時而成」的情況，否則上面等於沒測到
   })
 
   it('整張卦盤換月建重算後斷卦，與用該月建重新起卦斷卦逐字相同（時點推演的前提）', () => {

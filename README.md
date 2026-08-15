@@ -15,6 +15,9 @@
   - **問吉凶／問時機**——問「何時成」時不出五級判語，報告改以應期為主體。
     問「何時」的人預設事情會成，硬給吉凶判語是答非所問；這是介面上的區分，
     不是計分規則，兩者的分數與各段斷語逐字相同
+  - **時點推演**——同一卦推到未來十二個月各斷一次，列出每月的判語與用神旺衰，
+    並指出「轉機月」。這是敘述層：斷卦分數完全不受它影響（最直白的接回方式實測
+    讓命中率掉 11.3pp，見 CLAUDE.md 的負面結果第三節）
   - 梅花體用——體用生剋、互卦看過程、變卦看結局
 - **卦辭爻辭**：《周易》公有領域原文（繁體）
 - **術語解說**：61 條辭典，斷語中的術語自動標為可點擊
@@ -25,7 +28,7 @@
 ```bash
 npm install
 npm run dev      # 開發伺服器
-npm test         # 全部測試（113 項，含準確度回歸防線）
+npm test         # 全部測試（116 項，含準確度回歸防線）
 npm run lint     # oxlint
 npm run build    # 產生 dist/（含 PWA service worker）
 npm run preview  # 預覽正式版
@@ -43,9 +46,10 @@ calendar.ts     取四柱干支、旬空、農曆數（包 lunar-typescript）
 casting.ts      castByTime / castByNumbers / castManual → 本卦、互卦、變卦、動爻
       ↓
 najia.ts        buildNajiaChart：八宮世應、納甲、六親、六獸、伏神、神煞、旺衰、卦格
-                TimeFrame／timingOf／lineAt：旺衰月破旬空的純函式，可帶任意月建重算
+                TimeFrame／timingOf／lineAt／chartAt：旺衰月破旬空的純函式，可帶任意月建重算
       ↓
-interpret.ts    analyzeLiuyao：依問題類別取用神 → 逐段論斷 → 分數 → 五級判語
+interpret.ts    analyzeAt：依問題類別取用神 → 逐段論斷 → 分數 → 五級判語
+                projectMonths：同一卦推至未來十二個月各斷一次（敘述層，不參與計分）
 meihua.ts       analyzeMeihua：體用生剋 → 分數 → 五級判語（與 interpret 同一套刻度）
       ↓
 App.tsx         介面；純邏輯已抽離至 history.ts（紀錄存取）與 glossary.ts（術語）
@@ -170,7 +174,7 @@ npm test -- calibration
 
 ## 測試
 
-`npm test` 共 113 項：
+`npm test` 共 116 項：
 
 - `engine.test.ts`——曆法、起卦、裝卦（對照星僑軟體逐欄核對）、各項斷卦規則、
   重複計分與自相矛盾的回歸測試、資料完整性、術語涵蓋率
