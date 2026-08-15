@@ -6,7 +6,7 @@ import {
 } from './data/core'
 import type { ChartTime } from './calendar'
 import type { LineInfo, NajiaChart } from './najia'
-import { wangShuaiOf } from './najia'
+import { frameOf, timingOf } from './najia'
 
 /** 占病的新舊之別。古法以百日為界，斷法完全相反：
  *  「近病逢空即愈，久病逢空即死；近病逢沖即愈，久病逢沖即死」——
@@ -248,6 +248,7 @@ function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
 export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType, intent: AskIntent = '吉凶'): LiuyaoReport {
   const sections: ReportSection[] = []
   const decisive: DecisiveCondition[] = []
+  const frame = frameOf(ct) // 旺衰月破旬空一律由這個框架推得，見 najia.ts 的 TimeFrame
   let score = 0
 
   // 1. 找用神
@@ -345,17 +346,21 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
 
   const yEl: Element = isFuShen ? target.fuShen!.sb.element : target.sb.element
   const yBranch: Branch = isFuShen ? target.fuShen!.sb.branch : target.sb.branch
-  const yKong = ct.xunKong.includes(yBranch) // 用神本身（伏神時以伏神地支論）是否旬空
+  // 用神的旺衰、月破、旬空、日沖一律走 timingOf 這個純函式。
+  // 不能直接讀 target 上已算好的欄位——伏神為用神時要論的是伏神自己的地支，不是飛神的。
+  // 走同一個函式的另一個好處：要問「用神在別的月建下如何」時，換個 frame 即可，
+  // 不必在這裡再寫一套（未來時點推演要的正是這件事）。
+  const yTiming = timingOf(yBranch, frame)
+  const yKong = yTiming.isXunKong // 用神本身（伏神時以伏神地支論）是否旬空
   sections.push({ title: '用神', text: yongShenDesc + `。${qt.note}。` })
 
   // 2. 月建
-  const mEl = BRANCH_ELEMENT[ct.month.branch]
+  const mEl = BRANCH_ELEMENT[frame.monthBranch]
   const mRel = relation(mEl, yEl)
-  // 用神以月令論旺衰（伏神為用神時，以伏神本身五行論，不可用飛神的 wangShuai）
-  const yWang = wangShuaiOf(yEl, mEl)
+  const yWang = yTiming.wangShuai // 用神以月令論旺衰
   const yYouQi = yWang === '旺' || yWang === '相' // 月令有氣：旺相為有氣，休囚死為無氣
-  const yRiChong = yBranch === chong(ct.day.branch) // 用神是否被日辰所沖
-  const yYuePo = yBranch === chong(ct.month.branch) // 用神是否月破
+  const yRiChong = yTiming.isRiChong // 用神是否被日辰所沖
+  const yYuePo = yTiming.isYuePo // 用神是否月破
   let mText: string
   if (yYuePo) {
     mText = `用神${yBranch}${yEl}逢月建${ct.month.branch}沖，是為「月破」，大受挫傷`

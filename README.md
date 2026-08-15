@@ -25,7 +25,7 @@
 ```bash
 npm install
 npm run dev      # 開發伺服器
-npm test         # 全部測試（99 項，含準確度回歸防線）
+npm test         # 全部測試（113 項，含準確度回歸防線）
 npm run lint     # oxlint
 npm run build    # 產生 dist/（含 PWA service worker）
 npm run preview  # 預覽正式版
@@ -43,6 +43,7 @@ calendar.ts     取四柱干支、旬空、農曆數（包 lunar-typescript）
 casting.ts      castByTime / castByNumbers / castManual → 本卦、互卦、變卦、動爻
       ↓
 najia.ts        buildNajiaChart：八宮世應、納甲、六親、六獸、伏神、神煞、旺衰、卦格
+                TimeFrame／timingOf／lineAt：旺衰月破旬空的純函式，可帶任意月建重算
       ↓
 interpret.ts    analyzeLiuyao：依問題類別取用神 → 逐段論斷 → 分數 → 五級判語
 meihua.ts       analyzeMeihua：體用生剋 → 分數 → 五級判語（與 interpret 同一套刻度）
@@ -169,7 +170,7 @@ npm test -- calibration
 
 ## 測試
 
-`npm test` 共 99 項：
+`npm test` 共 113 項：
 
 - `engine.test.ts`——曆法、起卦、裝卦（對照星僑軟體逐欄核對）、各項斷卦規則、
   重複計分與自相矛盾的回歸測試、資料完整性、術語涵蓋率

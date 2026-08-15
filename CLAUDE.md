@@ -9,7 +9,7 @@
 
 ```bash
 npm install
-npm test          # 106 項，含準確度回歸防線
+npm test          # 113 項，含準確度回歸防線
 npm run dev
 ```
 
@@ -23,8 +23,9 @@ calendar.ts   四柱干支、旬空、農曆數（包 lunar-typescript）
 casting.ts    castByTime / castByNumbers / castManual → 本卦、互卦、變卦、動爻
     ↓
 najia.ts      buildNajiaChart：八宮世應、納甲、六親、六獸、伏神、神煞、旺衰、卦格
+              TimeFrame／timingOf／lineAt：時間相關欄位的純函式（可換月建重算）
     ↓
-interpret.ts  analyzeLiuyao：取用神 → 逐段論斷 → 分數 → 五級判語  ← 核心，894 行
+interpret.ts  analyzeLiuyao：取用神 → 逐段論斷 → 分數 → 五級判語  ← 核心，1019 行
 meihua.ts     analyzeMeihua：體用生剋 → 分數 → 五級判語（與 interpret 同刻度）
     ↓
 App.tsx       介面；純邏輯已抽離至 history.ts、glossary.ts
@@ -344,10 +345,23 @@ curl -sL -o 易隐.txt "https://raw.githubusercontent.com/garychowcmu/daizhigev2
 （#5、#36、#41、#52、#69）排除——但**那等於把已知會失分的案例移出分母，命中率必然上升**，
 與調參無異。若真要做，該當成一次獨立的決策、並在新採集的第三批上驗證，不要順手做掉。
 
-### 2. 把旺衰與生剋抽成可帶任意月建重算的純函式
+### ~~2. 把旺衰與生剋抽成可帶任意月建重算的純函式~~ ── 已完成（2026-08-15）
 
-無行為改變的重構，但同時是「未來時點推演」與「多爻作用結算層」兩者的前置。
-目前這些邏輯與 `chart`／`ct` 綁死，無法帶入任意月建重算。
+`najia.ts` 的 `TimeFrame`／`timingOf`／`lineAt`／`withMonthBranch`。時間收斂成
+月支、日干、日支、旬空四個欄位，與曆法產物（`ChartTime`）分開，
+`lineAt(l, withMonthBranch(frame, '寅'))` 即可問「這一爻若在寅月會如何」。
+
+**生剋原本就已經是純函式**（`data/core.ts` 的 `relation`），真正與 `ct` 綁死的只有
+旺衰、長生、月破、旬空、日沖這五項——盤點後才發現，backlog 原本的描述高估了工作量。
+
+建盤與斷卦一律走同一個 `timingOf`：`interpret.ts` 原本自己重算了一次用神的旺衰月破
+（因為伏神要論伏神自己的地支），現在改為 `timingOf(yBranch, frame)`。**同一件事只有
+一套算法**，否則兩套遲早分岔，而分岔時錯的那一套不會有人發現。
+
+無行為改變是驗過的，不是宣稱的：重構前後對 4 組日月 × 64 卦 × 6 動爻 × 21 類別 ×
+2 種 intent 加上 101 則校準報告共 **66,149 筆完整輸出**（含每一段斷語文字）做逐字比對，
+差異 0 筆。`engine.test.ts` 另留三則常設測試，其中一則釘住「換 frame 重算」與
+「換月份重新起盤」等價——那是時點推演能不能拿來比較的前提。
 
 ### 3. 未來時點推演
 
@@ -382,8 +396,8 @@ Settings → Pages → Source 選 GitHub Actions（GitHub 對新 repo 的安全�
 
 ## 目前狀態
 
-- 工作區乾淨，最新 commit 為問吉凶／問時機的介面區分（2026-08-15）
-- 測試 110 項全過；`npx tsc -b`、`npx oxlint src`、`npm run build` 皆乾淨；
+- 工作區乾淨，最新 commit 為時間框架重構（backlog #2，2026-08-15）
+- 測試 113 項全過；`npx tsc -b`、`npx oxlint src`、`npm run build` 皆乾淨；
   UI 以 playwright 實跑過兩種 intent，無 console 錯誤
 - **未清的帳**：元忌有力無力讓保留集退 1 則（見上節紅字）。backlog #1 已完成，
   但它**沒有、也不該**讓 #69 的失分消失——見該節「尚未決定的事」。要不要把問時機型

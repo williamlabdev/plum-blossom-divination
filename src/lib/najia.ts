@@ -196,6 +196,53 @@ export function changShengOf(el: Element, ref: Branch): ChangSheng {
   return CHANGSHENG_SEQ[diff]
 }
 
+// ── 時間框架 ──────────────────────────────────
+/** 旺衰、長生、月破、旬空、日沖所需的**全部**時間輸入，且僅止於此。
+ *
+ *  為什麼不直接傳 `ChartTime`：那是曆法的產物（公農曆文字、年時干支、梅花起卦數、
+ *  原始 Date），帶著它就無法問「同一卦若在寅月會如何」——而未來時點推演（backlog #3）
+ *  與多爻作用結算層（#4）要問的正是這個。把時間收斂成這四個欄位之後，
+ *  `withMonthBranch` 才能造出「只換月建、其餘一律不動」的框架。 */
+export interface TimeFrame {
+  monthBranch: Branch
+  dayStem: Stem
+  dayBranch: Branch
+  xunKong: readonly [Branch, Branch]
+}
+
+export function frameOf(ct: ChartTime): TimeFrame {
+  return { monthBranch: ct.month.branch, dayStem: ct.day.stem, dayBranch: ct.day.branch, xunKong: ct.xunKong }
+}
+
+/** 只換月建、其餘不動。逐月重算旺衰時用它。
+ *
+ *  注意旬空**刻意不跟著換**：旬空由日柱所在的旬決定，與月建無關。
+ *  推演「若在某月」時，問的是同一日所起之卦在不同月令下的氣勢，日柱本就不該變。 */
+export function withMonthBranch(frame: TimeFrame, monthBranch: Branch): TimeFrame {
+  return { ...frame, monthBranch }
+}
+
+/** 一個地支在給定時間框架下的旺衰、長生、月破、旬空、日沖。
+ *  純函式——同樣輸入必得同樣輸出，不讀取任何卦盤狀態，可帶任意月建重算。 */
+export interface BranchTiming {
+  wangShuai: WangShuai
+  changSheng: ChangSheng
+  isXunKong: boolean
+  isYuePo: boolean
+  isRiChong: boolean
+}
+
+export function timingOf(branch: Branch, frame: TimeFrame): BranchTiming {
+  const el = BRANCH_ELEMENT[branch]
+  return {
+    wangShuai: wangShuaiOf(el, BRANCH_ELEMENT[frame.monthBranch]),
+    changSheng: changShengOf(el, frame.dayBranch), // 長生以日支論
+    isXunKong: branch === frame.xunKong[0] || branch === frame.xunKong[1],
+    isYuePo: branch === chong(frame.monthBranch),
+    isRiChong: branch === chong(frame.dayBranch),
+  }
+}
+
 // ── 完整裝卦 ──────────────────────────────────
 export interface FuShen {
   liuqin: LiuQin
@@ -218,6 +265,15 @@ export interface LineInfo {
   bian: { sb: StemBranch; liuqin: LiuQin } | null // 動爻對應之變卦爻
   wangShuai: WangShuai
   changSheng: ChangSheng // 以日支論
+}
+
+/** 把一爻搬到另一個時間框架下重算。
+ *
+ *  只有隨時間改變的五個欄位（旺衰、長生、月破、旬空、日沖）會被換掉；納甲、六親、
+ *  世應、動變、伏神都是卦本身的結構，與時間無關，原樣保留。
+ *  這是「可帶任意月建重算」的入口：`lineAt(l, withMonthBranch(frame, '寅'))`。 */
+export function lineAt(line: LineInfo, frame: TimeFrame): LineInfo {
+  return { ...line, ...timingOf(line.sb.branch, frame) }
 }
 
 export interface NajiaChart {
@@ -269,9 +325,9 @@ export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): Naj
   }
 
   const shouStart = liuShouStart(ct.day.stem)
-  const kong = new Set(ct.xunKong)
-  const po = chong(ct.month.branch)
-  const ri = chong(ct.day.branch)
+  // 隨時間變動的五個欄位一律由 timingOf 產出，這裡不再各自算一份——
+  // 否則「帶任意月建重算」與「起卦當下」會是兩套算法，遲早對不上
+  const frame = frameOf(ct)
 
   const lines: LineInfo[] = []
   for (let i = 0; i < 6; i++) {
@@ -285,15 +341,11 @@ export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): Naj
       sb,
       liuqin: benLiuqin[i],
       liushou: LIUSHOU_SEQ[(shouStart + i) % 6],
-      isXunKong: kong.has(sb.branch),
-      isYuePo: sb.branch === po,
-      isRiChong: sb.branch === ri,
       fuShen: fuShenByPos.get(pos) ?? null,
       bian: pos === dong
         ? { sb: bianSbs[i], liuqin: liuQinOf(info.gongElement, bianSbs[i].element) }
         : null,
-      wangShuai: wangShuaiOf(sb.element, monthEl),
-      changSheng: changShengOf(sb.element, ct.day.branch),
+      ...timingOf(sb.branch, frame),
     })
   }
 
@@ -312,8 +364,8 @@ export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): Naj
     tianXi: tianXiOf(ct.month.branch),
     wangWang: WANGWANG[ct.month.branch],
     guaShen,
-    riChong: ri,
-    yuePo: po,
+    riChong: chong(frame.dayBranch),
+    yuePo: chong(frame.monthBranch),
     xunKong: ct.xunKong,
   }
 

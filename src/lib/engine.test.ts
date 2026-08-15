@@ -3,8 +3,8 @@ import type { ChartTime } from './calendar'
 import { getChartTime } from './calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, hexagramFromLines, randomInt } from './casting'
 import type { Branch, Stem } from './data/core'
-import { chouShenOf, jiShenOf, yuanShenOf } from './data/core'
-import { buildNajiaChart, guaXingOf } from './najia'
+import { BRANCHES, chouShenOf, jiShenOf, yuanShenOf } from './data/core'
+import { buildNajiaChart, frameOf, guaXingOf, lineAt, timingOf, withMonthBranch } from './najia'
 import { QUESTION_GROUPS, QUESTION_TYPES, analyzeLiuyao, findQuestionType } from './interpret'
 import { ZHOUYI } from './data/zhouyi'
 import { GLOSSARY } from './glossary'
@@ -907,5 +907,61 @@ describe('問吉凶／問時機：介面上的區分，不得是計分規則', (
     expect(shi.verdict).toBeNull()
     expect(shi.score).toBe(ji.score)
     expect(shi.sections).toEqual(ji.sections)
+  })
+})
+
+describe('時間框架：旺衰與月破旬空可帶任意月建重算（backlog #2 的重構）', () => {
+  it('timingOf 與 buildNajiaChart 的結果必須一致——不得存在第二套算法', () => {
+    // 這一則是這次重構唯一真正該守的東西：把時間相關欄位抽成純函式之後，
+    // 若建盤時仍各算一份，兩套遲早會分岔，而分岔時錯的那一套不會有人發現。
+    for (const ct of [mkCt('申', '甲', '子', ['戌', '亥']), mkCt('寅', '丁', '卯', ['戌', '亥'])]) {
+      const frame = frameOf(ct)
+      for (let n = 0; n < 64; n++) {
+        const lines = [0, 0, 0, 0, 0, 0]
+        for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+        const chart = buildNajiaChart(hexagramFromLines(lines), 1, ct)
+        for (const l of chart.lines) {
+          const t = timingOf(l.sb.branch, frame)
+          expect(t.wangShuai).toBe(l.wangShuai)
+          expect(t.changSheng).toBe(l.changSheng)
+          expect(t.isXunKong).toBe(l.isXunKong)
+          expect(t.isYuePo).toBe(l.isYuePo)
+          expect(t.isRiChong).toBe(l.isRiChong)
+        }
+      }
+    }
+  })
+
+  it('換月建重算的結果，與直接用該月建起盤完全相同（時點推演的前提）', () => {
+    // 路徑甲要對用神在未來 12 個月各推一次。這則測試保證「換 frame 重算」與
+    // 「換月份重新起盤」等價——否則推演出來的旺衰是另一套引擎算的，不能拿來與當下比較。
+    const base = mkCt('申', '甲', '子', ['戌', '亥'])
+    const chart = buildNajiaChart(hexagramFromLines([1, 0, 1, 0, 1, 0]), 3, base)
+    for (const m of BRANCHES) {
+      const asIfChart = buildNajiaChart(hexagramFromLines([1, 0, 1, 0, 1, 0]), 3, mkCt(m, '甲', '子', ['戌', '亥']))
+      const recomputed = chart.lines.map(l => lineAt(l, withMonthBranch(frameOf(base), m)))
+      for (let i = 0; i < 6; i++) {
+        expect(recomputed[i].wangShuai).toBe(asIfChart.lines[i].wangShuai)
+        expect(recomputed[i].isYuePo).toBe(asIfChart.lines[i].isYuePo)
+        expect(recomputed[i].isXunKong).toBe(asIfChart.lines[i].isXunKong)
+        expect(recomputed[i].changSheng).toBe(asIfChart.lines[i].changSheng)
+      }
+    }
+  })
+
+  it('換月建不得動到日辰與旬空：旬空由日柱所在之旬決定，與月建無關', () => {
+    const f = frameOf(mkCt('申', '甲', '子', ['戌', '亥']))
+    const g = withMonthBranch(f, '寅')
+    expect(g.dayStem).toBe(f.dayStem)
+    expect(g.dayBranch).toBe(f.dayBranch)
+    expect(g.xunKong).toEqual(f.xunKong)
+    expect(g.monthBranch).toBe('寅')
+    // 卦不隨時間改變的部分也不得被動到
+    const chart = buildNajiaChart(hexagramFromLines([1, 1, 0, 0, 1, 0]), 2, mkCt('申', '甲', '子', ['戌', '亥']))
+    const moved = lineAt(chart.lines[1], g)
+    expect(moved.sb).toEqual(chart.lines[1].sb)
+    expect(moved.liuqin).toBe(chart.lines[1].liuqin)
+    expect(moved.isDong).toBe(chart.lines[1].isDong)
+    expect(moved.bian).toEqual(chart.lines[1].bian)
   })
 })
