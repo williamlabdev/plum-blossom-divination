@@ -160,6 +160,57 @@ function pickYongShen(cands: LineInfo[], ct: ChartTime): LineInfo {
     ?? cands[0]
 }
 
+/** 元神／忌神的「有力／無力」判定，依《增刪卜易・元神忌神衰旺章第十》。
+ *
+ *  古法不是把元神加幾分、忌神扣幾分再相加，而是先判定這一爻**有力還是無力**：
+ *  「元神能生用神者有五：元神旺相或臨日月或日月動爻生扶者一也…元神長生帝旺於日辰三也…」
+ *  「元神雖現又有不能生用神者有六：元神休囚不動…休囚又逢自空、月破二也…元神衰而又絕四也，
+ *   元神入三墓五也…以上元神無力生用神，無用之元神也，**雖有如無**。」
+ *  「忌神雖動不能剋用神者有七：忌神休囚不動…**忌神靜臨空破二也**…忌神入三墓三也，
+ *   忌神衰而又絕五也…此忌神者乃無力之忌神也，**諸占化凶為吉**。」
+ *
+ *  兩處不對稱是古法原文就有的，不是筆誤：
+ *  - 元神無力只是「雖有如無」（中性），忌神無力卻是「諸占化凶為吉」。
+ *  - 元神須「休囚**又**逢自空月破」才算無力；忌神只要「靜臨空破」即無力。
+ *
+ *  【改寫理由的誠實紀錄】起初我以為舊版（元神旺 +1、忌神旺 −0.8）兩邊近乎對稱、
+ *  會抵銷成常數偏移而不具鑑別力——依據是第一批 53 則的消融測試 Δ=0.0。
+ *  **這個判斷是錯的**：窮舉掃描（32,256 組）顯示舊版本來就在 6.33% 的組合裡翻轉吉凶方向，
+ *  新版是 6.32%，兩者鑑別力相同。53 則語料的 Δ=0 是取樣不足，不是結構缺陷。
+ *  這一版之所以仍然保留，只剩一個理由：它實作了舊版根本沒有的古法判準
+ *  （長生帝旺於日辰、入三墓、衰而又絕、忌神靜臨空破），而非因為它比較準——
+ *  第一批命中率兩版都是 75.5%，逐案 HIT／MISS 完全相同。**不要把這段當成準確度的改進。**
+ *
+ *  【必須知道的代價】它讓保留測試集退了 1 則：60.4% → 58.3%（全部 68.3% → 67.3%）。
+ *  翻轉的是 #69「午建己巳日占臨產，得姤之鼎」——古人斷吉，本版斷凶。這正是「忌神持世」
+ *  被移除時的同一個訊號，別假裝沒看到。#69 是問「何時產」，落在 backlog #1（問吉凶／
+ *  問時機的介面區分）要處理的那一類，所以尚無法判定是雜訊還是這版真的較差。
+ *  處置見 CLAUDE.md「元神／忌神的有力無力」一節：先做 backlog #1，再回頭看 #69。
+ *
+ *  未實作：「元神與忌神同動」→ 元神有力、忌神無力（接續相生）。本引擎為單動爻模型，
+ *  兩爻同動結構上不可達，與反吟伏吟同屬單爻動模型的先天限制。 */
+function yuanShenStrength(l: LineInfo, ct: ChartTime): '有力' | '無力' {
+  const wang = l.wangShuai === '旺' || l.wangShuai === '相'
+  if (l.changSheng === '墓') return '無力' // 元神入三墓
+  if (!wang && l.changSheng === '絕') return '無力' // 元神衰而又絕
+  if (!wang && (l.isXunKong || l.isYuePo)) return '無力' // 元神休囚又逢自空、月破
+  if (wang) return '有力' // 元神旺相
+  if (l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch) return '有力' // 臨日月
+  if (l.changSheng === '長生' || l.changSheng === '帝旺') return '有力' // 長生帝旺於日辰
+  return '無力' // 元神休囚不動
+}
+
+function jiShenStrength(l: LineInfo, ct: ChartTime): '有力' | '無力' {
+  const wang = l.wangShuai === '旺' || l.wangShuai === '相'
+  if (l.isXunKong || l.isYuePo) return '無力' // 忌神靜臨空破（不待休囚，與元神不同）
+  if (l.changSheng === '墓') return '無力' // 忌神入三墓
+  if (!wang && l.changSheng === '絕') return '無力' // 忌神衰而又絕
+  if (wang) return '有力' // 忌神旺相
+  if (l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch) return '有力' // 臨日月
+  if (l.changSheng === '長生' || l.changSheng === '帝旺') return '有力' // 長生帝旺於日辰
+  return '無力' // 忌神休囚不動
+}
+
 /** 原神／忌神／仇神的選取。刻意**不**沿用 pickYongShen 的古法排序——兩部典籍講的都是
  *  「用神兩現」，對原神忌神並無此說；實測把 pickYongShen 套用於此對第一批命中率毫無影響
  *  （75.5% 不變），既無依據也無效益，故維持原本的動爻優先。 */
@@ -544,44 +595,59 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     //   若該爻正是動爻，其「發動對用神的生剋作用」一律交由下方「動爻變爻」段獨佔計分，
     //   本段僅作敘述、不計分。否則同一個爻會在兩段各扣（加）一次，合計可達 3.5 分。
     //   （本引擎為單動爻模型，故原神／忌神／仇神至多只有一個會是動爻。）
+    // 「亦要用神有氣。倘若用神無根，謂之元神有力亦難生；忌神無力何足喜」——
+    // 元神有力與忌神無力這兩個**正向**判定，都要被用神本身有無氣所閘住，故無氣時折半。
+    // 野鶴那則自占病的例子正是如此：元神酉金動、忌神未土反生元神，接續相生看似化凶為吉，
+    // 但用神亥水月破又被日剋、無根，終究「如樹無根，寒谷不回春」，果卒於癸卯日。
+    const genFactor = yYouQi ? 1 : 0.5
+    const yuanYouLi = !!yuanLine && !yuanLine.isDong && yuanShenStrength(yuanLine, ct) === '有力'
     const parts: string[] = []
     if (yuanLine) {
       const yuanDesc = `原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）`
       if (yuanLine.isDong) {
         parts.push(`${yuanDesc}正是本卦動爻，發動來生用神，源頭活水（其力道詳見「動爻變爻」一段）`)
-      } else if (yuanLine.isXunKong) {
-        parts.push(`原神${yuanCat}雖現但落旬空，助力暫時虛懸`)
-      } else if (yuanLine.wangShuai === '旺' || yuanLine.wangShuai === '相') {
-        parts.push(`${yuanDesc}得令而旺，助力扎實`)
-        score += 1
+      } else if (yuanYouLi) {
+        parts.push(`${yuanDesc}有力，生扶得實`)
       } else {
-        parts.push(`${yuanDesc}力弱，生扶有限`)
-        score += 0.2
+        // 「無用之元神也，雖有如無」——古法只說它幫不上忙，並未因此斷凶，故不單獨扣分。
+        parts.push(`${yuanDesc}無力，古法謂之「無用之元神，雖有如無」，指望不上`)
       }
     } else {
       parts.push(`原神${yuanCat}不上卦，用神助力無根，稍嫌單薄`)
       score -= 0.5
     }
 
+    const jiYouLi = !!jiLine && !jiLine.isDong && jiShenStrength(jiLine, ct) === '有力'
     if (jiLine) {
       const jiDesc = `忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）`
-      const jiActive = jiLine.isDong || ((jiLine.wangShuai === '旺' || jiLine.wangShuai === '相') && !jiLine.isXunKong)
       if (jiLine.isDong) {
         parts.push(`${jiDesc}正是本卦動爻，發動剋用神，事有阻力（其力道詳見「動爻變爻」一段）`)
-      } else if (jiLine.isXunKong) {
-        parts.push(`忌神${jiCat}雖現但落旬空，暫時無力為害`)
-      } else if (jiLine.wangShuai === '旺' || jiLine.wangShuai === '相') {
-        parts.push(`${jiDesc}得令，暗中牽制用神`)
-        score -= 0.8
+      } else if (jiYouLi) {
+        parts.push(`${jiDesc}有力，古法謂之「如斧戟之忌神」，暗中牽制用神`)
       } else {
-        parts.push(`${jiDesc}力弱，難以妨事`)
+        parts.push(`${jiDesc}無力，古法謂之「無力之忌神，諸占化凶為吉」，難以妨事`)
       }
       // 仇神生忌神是「忌神的後援」，與動爻對用神的直接生剋是不同層次的作用，不構成重複計分
-      if (jiActive && chouLine && chouLine.pos !== jiLine.pos
+      if ((jiLine.isDong || jiYouLi) && chouLine && chouLine.pos !== jiLine.pos
         && (chouLine.isDong || chouLine.wangShuai === '旺' || chouLine.wangShuai === '相')) {
         parts.push(`且仇神${chouCat}${chouLine.isDong ? '發動' : '得令'}生忌神，其勢更盛，尤須謹慎`)
         score -= 0.8
       }
+    }
+    // 元忌的計分只論**相對強弱**，不對兩者各自加減。理由有二：
+    //   一、古法問的是「元神忌神孰強」——元神有力而忌神無力則事成，反之則敗。
+    //   二、靜而休囚的忌神本來就不為害，那是常態而非吉兆，單獨給它加分等於把
+    //       「沒有壞事」再算一次好事。
+    // 這不是紙上推論：先做過「元神有力 +1.2／忌神有力 −1.5／忌神無力 +0.8」的獨立
+    // 加減版，第一批掉到 71.7%、判平從 0 竄到 3 則（分數被推向 0）；改為相對比較後
+    // 才回到 75.5%。那一版之所以壞，正是因為獎勵了「忌神休囚」這個常態。
+    // 動爻不參與此處計分——其生剋力道由「動爻變爻」段獨佔，避免重複計分。
+    if (yuanYouLi && !jiYouLi) {
+      parts.push('元神有力而忌神無力，生扶勝過牽制，事有依托')
+      score += 1.2 * genFactor
+    } else if (jiYouLi && !yuanYouLi) {
+      parts.push('忌神有力而元神無力，牽制勝過生扶，事多阻滯')
+      score -= 1.2
     }
     // 【已試過並移除】忌神持世
     // 古法有「兄弟持世，求財不利」之說，野鶴斷終身財福也逕以「兄爻持世，永無發福之秋」
