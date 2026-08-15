@@ -290,6 +290,32 @@ export interface NajiaChart {
   wuXingZhuangTai: { el: Element; wang: WangShuai; cs: ChangSheng }[] // 五行旺衰（月令）與長生（日支）
 }
 
+/** 把整張卦盤搬到另一個時間框架下重算。
+ *
+ *  只有隨時間改變的東西會換：六爻的旺衰長生空破沖（`lineAt`）、五行旺衰表、
+ *  以及神煞裡由月建推得的天喜與旺日、月破。納甲、六親、世應、動變、伏神、卦格
+ *  都是卦本身的結構，與時間無關，原樣保留。
+ *
+ *  日柱相關的神煞（貴人、驛馬、桃花、劫煞、羊刃、干祿）也不動：`withMonthBranch`
+ *  推演的是「同一日所起之卦在別的月令下」，日柱本就不該變（見 `withMonthBranch`）。 */
+export function chartAt(chart: NajiaChart, frame: TimeFrame): NajiaChart {
+  const ELS: Element[] = ['金', '木', '水', '火', '土']
+  const monthEl = BRANCH_ELEMENT[frame.monthBranch]
+  return {
+    ...chart,
+    lines: chart.lines.map(l => lineAt(l, frame)),
+    shenSha: {
+      ...chart.shenSha,
+      tianXi: tianXiOf(frame.monthBranch),
+      wangWang: WANGWANG[frame.monthBranch],
+      riChong: chong(frame.dayBranch),
+      yuePo: chong(frame.monthBranch),
+      xunKong: [...frame.xunKong],
+    },
+    wuXingZhuangTai: ELS.map(el => ({ el, wang: wangShuaiOf(el, monthEl), cs: changShengOf(el, frame.dayBranch) })),
+  }
+}
+
 export function buildNajiaChart(ben: Hexagram, dong: number, ct: ChartTime): NajiaChart {
   const info = gongOf(ben.lines)
   const shiPos = info.shi

@@ -4,8 +4,8 @@ import { getChartTime } from './calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, hexagramFromLines, randomInt } from './casting'
 import type { Branch, Stem } from './data/core'
 import { BRANCHES, chouShenOf, jiShenOf, yuanShenOf } from './data/core'
-import { buildNajiaChart, frameOf, guaXingOf, lineAt, timingOf, withMonthBranch } from './najia'
-import { QUESTION_GROUPS, QUESTION_TYPES, analyzeLiuyao, findQuestionType } from './interpret'
+import { buildNajiaChart, chartAt, frameOf, guaXingOf, lineAt, timingOf, withMonthBranch } from './najia'
+import { QUESTION_GROUPS, QUESTION_TYPES, analyzeAt, analyzeLiuyao, findQuestionType } from './interpret'
 import { ZHOUYI } from './data/zhouyi'
 import { GLOSSARY } from './glossary'
 
@@ -963,5 +963,25 @@ describe('時間框架：旺衰與月破旬空可帶任意月建重算（backlog
     expect(moved.liuqin).toBe(chart.lines[1].liuqin)
     expect(moved.isDong).toBe(chart.lines[1].isDong)
     expect(moved.bian).toEqual(chart.lines[1].bian)
+  })
+
+  it('整張卦盤換月建重算後斷卦，與用該月建重新起卦斷卦逐字相同（時點推演的前提）', () => {
+    // 上一則只保證單爻等價。時點推演實際餵給引擎的是整張 chartAt 出來的盤，
+    // 斷語裡還有神煞（天喜由月支推）與五行旺衰表——任何一項沒跟著換月建，
+    // 推演出來的報告就是「半個月份」的混合體，拿來跟當下比較毫無意義。
+    const base = mkCt('申', '甲', '子', ['戌', '亥'])
+    const qts = [QUESTION_TYPES.find(q => q.key === 'wealth')!, QUESTION_TYPES.find(q => q.key === 'career')!]
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      const chart = buildNajiaChart(hexagramFromLines(lines), 3, base)
+      for (const m of BRANCHES) {
+        const f = withMonthBranch(frameOf(base), m)
+        const asIf = buildNajiaChart(hexagramFromLines(lines), 3, mkCt(m, '甲', '子', ['戌', '亥']))
+        for (const qt of qts) {
+          expect(analyzeAt(chartAt(chart, f), f, qt)).toEqual(analyzeLiuyao(asIf, mkCt(m, '甲', '子', ['戌', '亥']), qt))
+        }
+      }
+    }
   })
 })

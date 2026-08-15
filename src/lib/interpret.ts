@@ -5,7 +5,7 @@ import {
   chong, chouShenOf, he, jiShenOf, jinTuiShen, relation, yuanShenOf,
 } from './data/core'
 import type { ChartTime } from './calendar'
-import type { LineInfo, NajiaChart } from './najia'
+import type { LineInfo, NajiaChart, TimeFrame } from './najia'
 import { frameOf, timingOf } from './najia'
 
 /** 占病的新舊之別。古法以百日為界，斷法完全相反：
@@ -173,8 +173,8 @@ const LINE_POSITION_IMAGERY: string[] = [
  *
  *  兩書排序一致：持世 → 臨月建日建 → 月破 → 旬空。動爻與旺相只是這四項都不成立時的墊底，
  *  因為它們正是野鶴所謂「此古法也」而不取的那一套。 */
-function pickYongShen(cands: LineInfo[], ct: ChartTime): LineInfo {
-  const linYueRi = (l: LineInfo) => l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch
+function pickYongShen(cands: LineInfo[], frame: TimeFrame): LineInfo {
+  const linYueRi = (l: LineInfo) => l.sb.branch === frame.monthBranch || l.sb.branch === frame.dayBranch
   return cands.find(l => l.shiYing === '世')
     ?? cands.find(l => l.isYuePo)
     ?? cands.find(l => l.isXunKong)
@@ -213,24 +213,24 @@ function pickYongShen(cands: LineInfo[], ct: ChartTime): LineInfo {
  *
  *  未實作：「元神與忌神同動」→ 元神有力、忌神無力（接續相生）。本引擎為單動爻模型，
  *  兩爻同動結構上不可達，與反吟伏吟同屬單爻動模型的先天限制。 */
-function yuanShenStrength(l: LineInfo, ct: ChartTime): '有力' | '無力' {
+function yuanShenStrength(l: LineInfo, frame: TimeFrame): '有力' | '無力' {
   const wang = l.wangShuai === '旺' || l.wangShuai === '相'
   if (l.changSheng === '墓') return '無力' // 元神入三墓
   if (!wang && l.changSheng === '絕') return '無力' // 元神衰而又絕
   if (!wang && (l.isXunKong || l.isYuePo)) return '無力' // 元神休囚又逢自空、月破
   if (wang) return '有力' // 元神旺相
-  if (l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch) return '有力' // 臨日月
+  if (l.sb.branch === frame.monthBranch || l.sb.branch === frame.dayBranch) return '有力' // 臨日月
   if (l.changSheng === '長生' || l.changSheng === '帝旺') return '有力' // 長生帝旺於日辰
   return '無力' // 元神休囚不動
 }
 
-function jiShenStrength(l: LineInfo, ct: ChartTime): '有力' | '無力' {
+function jiShenStrength(l: LineInfo, frame: TimeFrame): '有力' | '無力' {
   const wang = l.wangShuai === '旺' || l.wangShuai === '相'
   if (l.isXunKong || l.isYuePo) return '無力' // 忌神靜臨空破（不待休囚，與元神不同）
   if (l.changSheng === '墓') return '無力' // 忌神入三墓
   if (!wang && l.changSheng === '絕') return '無力' // 忌神衰而又絕
   if (wang) return '有力' // 忌神旺相
-  if (l.sb.branch === ct.month.branch || l.sb.branch === ct.day.branch) return '有力' // 臨日月
+  if (l.sb.branch === frame.monthBranch || l.sb.branch === frame.dayBranch) return '有力' // 臨日月
   if (l.changSheng === '長生' || l.changSheng === '帝旺') return '有力' // 長生帝旺於日辰
   return '無力' // 忌神休囚不動
 }
@@ -244,11 +244,18 @@ function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
   return cands.find(l => l.isDong) ?? cands.find(l => l.wangShuai === '旺' || l.wangShuai === '相') ?? cands[0]
 }
 
-/** `intent` 預設 `吉凶`：校準與既有呼叫端一律走這條路徑，行為與加入此參數之前完全相同。 */
+/** 起卦當下的斷卦。`intent` 預設 `吉凶`：校準與既有呼叫端一律走這條路徑。 */
 export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType, intent: AskIntent = '吉凶'): LiuyaoReport {
+  return analyzeAt(chart, frameOf(ct), qt, intent)
+}
+
+/** 斷卦本體：只吃 `TimeFrame`，不吃 `ChartTime`——曆法文字、年時干支、梅花起卦數與斷卦無關，
+ *  而時間收斂成月建／日干支／旬空這四個欄位之後，才問得出「同一卦若在別的月建下如何」。
+ *  未來時點推演走的正是這條路：`analyzeAt(chartAt(chart, f), f, qt)`，
+ *  卦盤與斷語必須走同一個 frame，否則兩邊的旺衰會分岔。 */
+export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType, intent: AskIntent = '吉凶'): LiuyaoReport {
   const sections: ReportSection[] = []
   const decisive: DecisiveCondition[] = []
-  const frame = frameOf(ct) // 旺衰月破旬空一律由這個框架推得，見 najia.ts 的 TimeFrame
   let score = 0
 
   // 1. 找用神
@@ -260,7 +267,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const cands = chart.lines.filter(l => l.liuqin === qt.yongShen)
     if (cands.length === 1) target = cands[0]
     else if (cands.length > 1) {
-      target = pickYongShen(cands, ct)
+      target = pickYongShen(cands, frame)
     } else {
       // 用神不上卦 → 取伏神
       const fuLine = chart.lines.find(l => l.fuShen?.liuqin === qt.yongShen)
@@ -363,16 +370,16 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   const yYuePo = yTiming.isYuePo // 用神是否月破
   let mText: string
   if (yYuePo) {
-    mText = `用神${yBranch}${yEl}逢月建${ct.month.branch}沖，是為「月破」，大受挫傷`
+    mText = `用神${yBranch}${yEl}逢月建${frame.monthBranch}沖，是為「月破」，大受挫傷`
     score -= 3
   } else if (mRel === '我生') {
-    mText = `月建${ct.month.branch}${mEl}生用神，得月令生扶，氣勢有根`
+    mText = `月建${frame.monthBranch}${mEl}生用神，得月令生扶，氣勢有根`
     score += 2
   } else if (mRel === '比和') {
-    mText = `用神與月建${ct.month.branch}${mEl}比和，當令而旺`
+    mText = `用神與月建${frame.monthBranch}${mEl}比和，當令而旺`
     score += 2.5
   } else if (mRel === '我剋') {
-    mText = `月建${ct.month.branch}${mEl}剋用神，月令受制，先天不足`
+    mText = `月建${frame.monthBranch}${mEl}剋用神，月令受制，先天不足`
     score -= 2
   } else if (mRel === '剋我') {
     mText = `用神剋月建，耗力而氣散`
@@ -383,38 +390,38 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   }
 
   // 3. 日辰
-  const dEl = BRANCH_ELEMENT[ct.day.branch]
+  const dEl = BRANCH_ELEMENT[frame.dayBranch]
   const dRel = relation(dEl, yEl)
   let dText: string
   const isBing = !!qt.bingType
   if (yRiChong && isBing) {
     // 占病逢沖不論暗動日破，改由下方「占病」段落依近病久病反向斷之
-    dText = `日辰${ct.day.branch}沖用神，占病逢沖另有專斷（詳見占病一段）`
+    dText = `日辰${frame.dayBranch}沖用神，占病逢沖另有專斷（詳見占病一段）`
   } else if (yRiChong) {
     // 旺相之爻逢沖為「暗動」、休囚無氣之爻逢沖為「日破」；旬空逢沖則為「沖空」另論。
     // 但已判月破者不可再論暗動——同一爻不能既「大受挫傷」又「當令有氣」，
     // 破而又沖是雪上加霜，非暗中萌動之吉象。
     if (yYuePo) {
-      dText = `日辰${ct.day.branch}復沖用神，月破之爻再逢日沖，破而又沖、傷上加傷，非暗動之象`
+      dText = `日辰${frame.dayBranch}復沖用神，月破之爻再逢日沖，破而又沖、傷上加傷，非暗動之象`
       score -= 1
     } else if (yYouQi && !yKong) {
-      dText = `日辰${ct.day.branch}沖用神，用神當令有氣（${yWang}）而逢沖，是為「暗動」，事已暗中萌動`
+      dText = `日辰${frame.dayBranch}沖用神，用神當令有氣（${yWang}）而逢沖，是為「暗動」，事已暗中萌動`
       score += 0.5
     } else if (yKong) {
-      dText = `日辰${ct.day.branch}沖用神而用神正落旬空，是為「沖空」，虛而受激，事浮動未實`
+      dText = `日辰${frame.dayBranch}沖用神而用神正落旬空，是為「沖空」，虛而受激，事浮動未實`
       score -= 0.5
     } else {
-      dText = `日辰${ct.day.branch}沖用神，用神休囚無氣（${yWang}）而逢沖，是為「日破」，事有崩解之虞`
+      dText = `日辰${frame.dayBranch}沖用神，用神休囚無氣（${yWang}）而逢沖，是為「日破」，事有崩解之虞`
       score -= 2
     }
   } else if (dRel === '我生') {
-    dText = `日辰${ct.day.branch}${dEl}生用神，近助有力`
+    dText = `日辰${frame.dayBranch}${dEl}生用神，近助有力`
     score += 1.5
   } else if (dRel === '比和') {
-    dText = `日辰${ct.day.branch}${dEl}扶用神，得日辰之助`
+    dText = `日辰${frame.dayBranch}${dEl}扶用神，得日辰之助`
     score += 1.5
   } else if (dRel === '我剋') {
-    dText = `日辰${ct.day.branch}${dEl}剋用神，眼前多受制肘`
+    dText = `日辰${frame.dayBranch}${dEl}剋用神，眼前多受制肘`
     score -= 1.5
   } else if (dRel === '剋我') {
     dText = `用神剋日辰，費力周旋`
@@ -437,17 +444,17 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const chuKong = `出空之期在${yBranch}日（值日填實）或${chong(yBranch)}日（沖空則實）`
     let kText: string
     if (kongDong) {
-      kText = `用神${yBranch}雖落旬空（${ct.xunKong.join('')}空），然「動不為空」，發動之爻空而有用，事仍在進行，${chuKong}。`
+      kText = `用神${yBranch}雖落旬空（${frame.xunKong.join('')}空），然「動不為空」，發動之爻空而有用，事仍在進行，${chuKong}。`
       score -= 0.3
     } else if (yYouQi) {
-      kText = `用神${yBranch}雖落旬空（${ct.xunKong.join('')}空），然月令${yWang}而「旺不為空」，此為假空，只是時候未到，${chuKong}。`
+      kText = `用神${yBranch}雖落旬空（${frame.xunKong.join('')}空），然月令${yWang}而「旺不為空」，此為假空，只是時候未到，${chuKong}。`
       score -= 0.3
     } else if (dayFu || monthFu || dongFu) {
-      const fuYuan = dayFu ? `日辰${ct.day.branch}` : monthFu ? `月建${ct.month.branch}` : '動爻'
-      kText = `用神${yBranch}落旬空（${ct.xunKong.join('')}空），幸得${fuYuan}生扶，「有生扶不為空」，非真落空，事只是遲而未顯，${chuKong}。`
+      const fuYuan = dayFu ? `日辰${frame.dayBranch}` : monthFu ? `月建${frame.monthBranch}` : '動爻'
+      kText = `用神${yBranch}落旬空（${frame.xunKong.join('')}空），幸得${fuYuan}生扶，「有生扶不為空」，非真落空，事只是遲而未顯，${chuKong}。`
       score -= 0.6
     } else {
-      kText = `用神${yBranch}落旬空（${ct.xunKong.join('')}空），且月令${yWang}無氣、又不發動、亦無日月動爻生扶，是為「真空」，所問之事恐終成畫餅，${chuKong}。`
+      kText = `用神${yBranch}落旬空（${frame.xunKong.join('')}空），且月令${yWang}無氣、又不發動、亦無日月動爻生扶，是為「真空」，所問之事恐終成畫餅，${chuKong}。`
       score -= 2
     }
     sections.push({ title: '旬空', text: kText })
@@ -460,7 +467,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const jin = qt.bingType === '近病'
     const bParts: string[] = []
     const bianKong = target.isDong && !isFuShen && target.bian
-      && ct.xunKong.includes(target.bian.sb.branch)
+      && frame.xunKong.includes(target.bian.sb.branch)
 
     if (yKong) {
       bParts.push(jin
@@ -492,8 +499,8 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
 
     if (yRiChong) {
       bParts.push(jin
-        ? `用神逢日辰${ct.day.branch}沖，「近病逢沖即愈」，沖散病氣，其病當退`
-        : `用神逢日辰${ct.day.branch}沖，「久病逢沖莫治」，久病之身再受沖激，元氣潰散，凶多吉少`)
+        ? `用神逢日辰${frame.dayBranch}沖，「近病逢沖即愈」，沖散病氣，其病當退`
+        : `用神逢日辰${frame.dayBranch}沖，「久病逢沖莫治」，久病之身再受沖激，元氣潰散，凶多吉少`)
       score += jin ? 2 : -2.5
       decisive.push({
         name: jin ? '近病逢沖' : '久病逢沖',
@@ -575,16 +582,16 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     const muB = MU_BRANCH[yEl]
     const muParts: string[] = []
     // 墓庫本身落旬空則庫門洞開，不能收物，是為「空墓不受」，此時不作入墓論
-    const muKong = ct.xunKong.includes(muB)
-    const ruRiMu = ct.day.branch === muB
+    const muKong = frame.xunKong.includes(muB)
+    const ruRiMu = frame.dayBranch === muB
     const huaMu = !!(target.isDong && !isFuShen && target.bian && target.bian.sb.branch === muB)
     if (muKong && (ruRiMu || huaMu)) {
       // 空墓不受：墓庫落空則庫門洞開，收不住物，入日墓與動而化墓皆不成立，故完全不計分
       muParts.push(`用神雖遇${muB}墓地，然${yEl}之墓庫${muB}正落旬空，庫虛而門不閉，是為「空墓不受」，不作入墓論，反主開通而無拘束`)
     } else if (ruRiMu) {
       muParts.push(yYouQi
-        ? `用神${yBranch}${yEl}入日墓（日辰${ct.day.branch}為${yEl}之墓庫），幸而月令${yWang}有氣，墓中猶存生機，待${chong(muB)}日沖開墓庫，事乃能出`
-        : `用神${yBranch}${yEl}入日墓（日辰${ct.day.branch}為${yEl}之墓庫），且月令${yWang}無氣，深陷墓中難出，事被困而不顯，人事多有壓抑閉塞之象`)
+        ? `用神${yBranch}${yEl}入日墓（日辰${frame.dayBranch}為${yEl}之墓庫），幸而月令${yWang}有氣，墓中猶存生機，待${chong(muB)}日沖開墓庫，事乃能出`
+        : `用神${yBranch}${yEl}入日墓（日辰${frame.dayBranch}為${yEl}之墓庫），且月令${yWang}無氣，深陷墓中難出，事被困而不顯，人事多有壓抑閉塞之象`)
       score -= yYouQi ? 0.8 : 2
     }
     if (huaMu && !muKong) {
@@ -631,7 +638,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     // 野鶴那則自占病的例子正是如此：元神酉金動、忌神未土反生元神，接續相生看似化凶為吉，
     // 但用神亥水月破又被日剋、無根，終究「如樹無根，寒谷不回春」，果卒於癸卯日。
     const genFactor = yYouQi ? 1 : 0.5
-    const yuanYouLi = !!yuanLine && !yuanLine.isDong && yuanShenStrength(yuanLine, ct) === '有力'
+    const yuanYouLi = !!yuanLine && !yuanLine.isDong && yuanShenStrength(yuanLine, frame) === '有力'
     const parts: string[] = []
     if (yuanLine) {
       const yuanDesc = `原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）`
@@ -648,7 +655,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
       score -= 0.5
     }
 
-    const jiYouLi = !!jiLine && !jiLine.isDong && jiShenStrength(jiLine, ct) === '有力'
+    const jiYouLi = !!jiLine && !jiLine.isDong && jiShenStrength(jiLine, frame) === '有力'
     if (jiLine) {
       const jiDesc = `忌神${jiCat}（${posName[jiLine.pos - 1]}${jiLine.sb.branch}${jiLine.sb.element}）`
       if (jiLine.isDong) {
@@ -695,13 +702,13 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   let heBan = false // 用神自身發動又與日辰相合，變化受牽制
   if (!isFuShen) {
     const heParts: string[] = []
-    if (he(yBranch) === ct.day.branch) {
+    if (he(yBranch) === frame.dayBranch) {
       if (target.isDong) {
         heBan = true
-        heParts.push(`用神${yBranch}與日辰${ct.day.branch}相合，動而逢合為「合絆」，變化受牽制、事情暫時卡住，須待${chong(yBranch)}日沖開方能成事`)
+        heParts.push(`用神${yBranch}與日辰${frame.dayBranch}相合，動而逢合為「合絆」，變化受牽制、事情暫時卡住，須待${chong(yBranch)}日沖開方能成事`)
         score -= 1
       } else {
-        heParts.push(`用神${yBranch}與日辰${ct.day.branch}相合，靜而逢合為「合起」，暗中得力，後續看好`)
+        heParts.push(`用神${yBranch}與日辰${frame.dayBranch}相合，靜而逢合為「合起」，暗中得力，後續看好`)
         score += 1
       }
     }
@@ -716,7 +723,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
     // 若同時有多組結構完整，優先論與用神本身相關的一組，其次才依組別預設順序取
     const formedGroups = SANHE_GROUPS.filter(group => {
       const inGua = group.branches.filter(b => chart.lines.some(l => l.sb.branch === b))
-      const present = group.branches.filter(b => inGua.includes(b) || b === ct.day.branch || b === ct.month.branch)
+      const present = group.branches.filter(b => inGua.includes(b) || b === frame.dayBranch || b === frame.monthBranch)
       return present.length === 3 && inGua.length >= 2
     })
     const sanHeGroup = formedGroups.find(g => g.branches.includes(yBranch)) ?? formedGroups[0]
@@ -789,7 +796,7 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
         score -= 1.5
       }
       // 化空：動爻化出之爻落旬空，主變化落不到實處
-      if (ct.xunKong.includes(dongLine.bian!.sb.branch)) {
+      if (frame.xunKong.includes(dongLine.bian!.sb.branch)) {
         parts.push(`且變爻${dongLine.bian!.sb.branch}落旬空，變化尚落不到實處，須待出空`)
         score -= 0.5
       }
