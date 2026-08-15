@@ -136,7 +136,7 @@ gh run rerun 31889495837 && gh run watch
 
 **等 william 裁決:**
 
-1. **本棒三個檔要不要留**(已 commit 到本地,見下方 hash;要退就 revert 那一個 commit):
+1. **本棒的產出要不要留**——全部在 `8e105a1` 這一個 commit 裡,要退就 `git revert 8e105a1`:
    - `CLAUDE.md` 的改寫(尤其是把「採第三批」那句改掉——那是上一棒寫的話)
    - `src/lib/data/classic-cases-batch3.json` 15 則
    - `tools/collect-cases.py` + `tools/candidates.json`
