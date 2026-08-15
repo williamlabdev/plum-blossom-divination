@@ -4,7 +4,7 @@ import { GLOSSARY } from './lib/glossary'
 import { getChartTime, type ChartTime } from './lib/calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, randomInt, type CastResult, type Hexagram } from './lib/casting'
 import { buildNajiaChart, type NajiaChart } from './lib/najia'
-import { analyzeLiuyao, findQuestionType, QUESTION_GROUPS, QUESTION_TYPES, type LiuyaoReport, type QuestionType } from './lib/interpret'
+import { analyzeLiuyao, findQuestionType, QUESTION_GROUPS, QUESTION_TYPES, type AskIntent, type LiuyaoReport, type QuestionType } from './lib/interpret'
 import { analyzeMeihua, type MeihuaAnalysis } from './lib/meihua'
 import { TRIGRAMS } from './lib/data/core'
 import {
@@ -89,7 +89,9 @@ function compute(input: CastInput): Reading {
   const chart = buildNajiaChart(cast.ben, cast.dong, ct)
   // findQuestionType 會處理舊紀錄的 key（健康疾病已拆為近病／久病兩類）
   const qt = findQuestionType(input.qtKey) ?? QUESTION_TYPES[0]
-  const report = analyzeLiuyao(chart, ct, qt)
+  // 舊紀錄無 intent、或 localStorage 內容被竄改成非法值 → 一律當成問吉凶
+  const intent: AskIntent = input.intent === '時機' ? '時機' : '吉凶'
+  const report = analyzeLiuyao(chart, ct, qt, intent)
   const meihua = analyzeMeihua(cast, ct)
   return { input, ct, cast, chart, report, meihua, qt }
 }
@@ -221,12 +223,18 @@ function Analysis({ r }: { r: Reading }) {
     <>
       <div className="card">
         <h2>六爻斷卦</h2>
+        {/* 問時機時應期就是答案，排在最前面；問吉凶時它是判語的補充，維持原本放在末尾 */}
+        {r.report.intent === '時機' && (
+          <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term><AutoTerms text={r.report.yingQi} /></div>
+        )}
         {r.report.sections.filter(s => !s.descriptive).map(s => (
           <div className="section" key={s.title}>
             <Term k={s.title}><span className="sec-title">{s.title}</span></Term><AutoTerms text={s.text} />
           </div>
         ))}
-        <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term><AutoTerms text={r.report.yingQi} /></div>
+        {r.report.intent === '吉凶' && (
+          <div className="section"><Term k="應期"><span className="sec-title">應期</span></Term><AutoTerms text={r.report.yingQi} /></div>
+        )}
         {/* 只描述性質、不影響吉凶的段落另置一區並預設收合，
             免得與決定吉凶的段落視覺等權，讀完仍不知道結論從何而來 */}
         {r.report.sections.some(s => s.descriptive) && (
@@ -281,6 +289,7 @@ export default function App() {
   const [sameHourNote, setSameHourNote] = useState('')
   const [question, setQuestion] = useState('')
   const [qtKey, setQtKey] = useState('general')
+  const [intent, setIntent] = useState<AskIntent>('吉凶')
   const [method, setMethod] = useState<'time' | 'number' | 'random' | 'manual'>('time')
   const [useCustomTime, setUseCustomTime] = useState(false)
   const [customTime, setCustomTime] = useState('')
@@ -319,6 +328,7 @@ export default function App() {
         dateLocal,
         method,
         qtKey,
+        intent,
         question: question.trim(),
       }
       if (method === 'number') {
@@ -353,7 +363,7 @@ export default function App() {
         ...input,
         savedAt: new Date().toISOString(),
         guaName: `${r.cast.ben.gua.fullName} → ${r.cast.bian.gua.fullName}`,
-        verdict: r.report.verdict,
+        verdict: r.report.verdict ?? '', // 問時機無判語
       }, ...h].slice(0, 50))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -386,8 +396,10 @@ export default function App() {
       `${r.ct.solarText}（${r.ct.lunarText}）`,
       `${r.ct.year.stem}${r.ct.year.branch}年 ${r.ct.month.stem}${r.ct.month.branch}月 ${r.ct.day.stem}${r.ct.day.branch}日 ${r.ct.hour.stem}${r.ct.hour.branch}時`,
       `${r.cast.ben.gua.fullName} 之 ${r.cast.bian.gua.fullName}（互卦${r.cast.hu.gua.fullName}）`,
-      `六爻斷卦：${r.report.verdict}——${VERDICT_LINE[r.report.verdict]}`,
-      `梅花體用：${r.meihua.level}`,
+      // 問時機的卦不出判語，分享出去的文字也不該出現——否則等於從側門把判語放回去
+      ...(r.report.verdict
+        ? [`六爻斷卦：${r.report.verdict}——${VERDICT_LINE[r.report.verdict]}`, `梅花體用：${r.meihua.level}`]
+        : ['所問為時機（不出吉凶判語）']),
       `應期：${r.report.yingQi}`,
     ]
     const text = lines.join('\n')
@@ -435,6 +447,17 @@ export default function App() {
             </div>
           ))}
           <div className="qt-note">選定的用神：{findQuestionType(qtKey)?.yongShen}　·　{findQuestionType(qtKey)?.note}</div>
+
+          <label className="field">問的是什麼</label>
+          <div className="chip-row">
+            <button className={'chip' + (intent === '吉凶' ? ' active' : '')} onClick={() => setIntent('吉凶')}>問吉凶（成不成）</button>
+            <button className={'chip' + (intent === '時機' ? ' active' : '')} onClick={() => setIntent('時機')}>問時機（何時成）</button>
+          </div>
+          <div className="qt-note">
+            {intent === '吉凶'
+              ? '出五級判語（大吉／偏吉／平／偏凶／大凶），並附應期。'
+              : '不出吉凶判語，報告以應期為主體。問「何時」本身已預設事情會成——若你其實還不確定成不成，請改選「問吉凶」。'}
+          </div>
 
           <label className="field">起卦方式</label>
           <div className="seg">
@@ -523,18 +546,37 @@ export default function App() {
         <>
           <div className="card summary-card">
             <div className="verdict-row">
-              <div className={'verdict level-' + reading.report.verdict}>{reading.report.verdict}</div>
+              {/* 問時機時判語位置改放「應期」二字：不是把判語藏起來，是這一卦的答案本來就是應期 */}
+              <div className={reading.report.verdict ? 'verdict level-' + reading.report.verdict : 'verdict level-應期'}>
+                {reading.report.verdict ?? '應期'}
+              </div>
               <div className="verdict-note">
                 {reading.input.question ? `所問：${reading.input.question}` : `所問類別：${reading.qt.label}`}
                 <br />
                 <strong>{reading.cast.ben.gua.fullName}</strong> 之 <strong>{reading.cast.bian.gua.fullName}</strong>
               </div>
             </div>
-            <div className="summary-line">{VERDICT_LINE[reading.report.verdict]}　應期：{reading.report.yingQi}</div>
-            <div className="summary-sub">
-              梅花<Term k="體用">體用</Term>參斷：{reading.meihua.level}
-              {reading.meihua.level !== reading.report.verdict && '（兩法角度不同：六爻依所問取用神為主，梅花以體用氣勢為輔）'}
-            </div>
+            {reading.report.verdict
+              ? (
+                  <>
+                    <div className="summary-line">{VERDICT_LINE[reading.report.verdict]}　應期：{reading.report.yingQi}</div>
+                    <div className="summary-sub">
+                      梅花<Term k="體用">體用</Term>參斷：{reading.meihua.level}
+                      {reading.meihua.level !== reading.report.verdict && '（兩法角度不同：六爻依所問取用神為主，梅花以體用氣勢為輔）'}
+                    </div>
+                  </>
+                )
+              : (
+                  <>
+                    <div className="summary-line"><AutoTerms text={reading.report.yingQi} /></div>
+                    {/* 梅花體用仍會斷吉凶。這裡若照舊把它放在摘要卡，等於判語從旁邊繞回來，
+                        故只留一行指路，完整的梅花參斷留在下方自己那張卡。 */}
+                    <div className="summary-sub">
+                      你問的是時機，故不出吉凶判語。下方「六爻斷卦」各段仍列出用神旺衰與生剋，
+                      供你判斷這個應期有多可信；若要看成敗，請回起卦頁改選「問吉凶」。
+                    </div>
+                  </>
+                )}
             <button className="share-btn" onClick={shareResult}>分享結果</button>
             {shareMsg && <span className="share-msg">{shareMsg}</span>}
           </div>
@@ -570,7 +612,8 @@ export default function App() {
                 <div>{h.question || findQuestionType(h.qtKey)?.label}｜{h.guaName}</div>
                 <div className="h-time">{new Date(h.savedAt).toLocaleString('zh-TW')}</div>
               </div>
-              <div className="h-verdict">{h.verdict}</div>
+              {/* 問時機的紀錄沒有判語（存空字串），列表改標示問的是什麼，不要留一格空白 */}
+              <div className="h-verdict">{h.verdict || '問時機'}</div>
               <button
                 className="h-delete"
                 aria-label="刪除這筆紀錄"

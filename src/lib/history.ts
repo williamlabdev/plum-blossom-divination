@@ -15,11 +15,15 @@ export interface CastInput {
   manual?: { upper: number; lower: number; dong: number }
   qtKey: string
   question: string
+  /** 問吉凶／問時機。舊紀錄沒有這個欄位，讀回來時一律當作 `吉凶`（見 App 的 compute）。
+   *  刻意寫成字面量而不從 interpret 匯入型別：這個模組是純儲存邏輯，不該依賴斷卦引擎。 */
+  intent?: '吉凶' | '時機'
 }
 
 export interface HistoryItem extends CastInput {
   savedAt: string
   guaName: string
+  /** 問時機的紀錄沒有判語，存空字串。介面據此改顯示「問時機」。 */
   verdict: string
 }
 

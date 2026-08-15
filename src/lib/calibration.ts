@@ -221,7 +221,11 @@ export function runCase(c: ClassicCase, index: number): CaseResult {
   if (!base) throw new Error('問題類型查無：' + mapping.qtKey)
   // 占病修飾：把 bingType 疊加到該用神類型上（介面未開放此組合，但古籍病案多屬占他人病）
   const qt: QuestionType = mapping.bingType ? { ...base, bingType: mapping.bingType } : base
+  // 校準一律以預設的「問吉凶」跑：古籍案例記的都是古人斷的吉凶方向，沒有「只問時機」的案例。
+  // 若哪天有人把 intent 傳進來，寧可在這裡炸掉，也不要讓無判語的報告被 direction() 默默算成 0（平）
+  // 而虛報成命中——校準的數字是這個專案唯一的判準，不能有靜默降級的路徑。
   const report = analyzeLiuyao(chart, ct, qt)
+  if (report.verdict === null) throw new Error(`校準只跑問吉凶，不應出現無判語的報告：#${index}`)
   const expected = direction(c.verdict)
   const actual = direction(report.verdict)
   return { index, c, mapping, report, expected, actual, hit: expected === actual }

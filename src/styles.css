@@ -189,6 +189,8 @@ table.pan tr:last-child td { border-bottom: none; }
 .verdict.level-平 { background: var(--gold); }
 .verdict.level-偏凶 { background: #7a5c8a; }
 .verdict.level-大凶 { background: #3d3a36; }
+/* 問時機時判語位置放的是「應期」，刻意用中性色：它不是一個吉凶等級 */
+.verdict.level-應期 { background: var(--ink-soft); font-size: 1.3rem; }
 .verdict-note { font-size: 0.85rem; color: var(--ink-soft); line-height: 1.6; }
 
 .section { margin: 10px 0; line-height: 1.85; font-size: 0.92rem; }

@@ -838,3 +838,74 @@ describe('主導條件：占病逢空逢沖逕定方向，不被其他生剋的�
     expect(checked).toBeGreaterThanOrEqual(0)
   })
 })
+
+describe('問吉凶／問時機：介面上的區分，不得是計分規則', () => {
+  // 這一組測試是這個功能能不能存在的前提。古籍 4 則「問何時」案例古人全部斷吉，
+  // 但那是 n=4、全部同向、且看著失分案例才發現的樣本——與「忌神持世」翻車的成因一模一樣。
+  // 所以 intent 只准決定「判語出不出」，一旦它碰到分數，這個功能就該整個拿掉。
+  it('窮舉全卦象：兩種 intent 的 score、sections、decisive、應期完全相同', () => {
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+        for (const qt of QUESTION_TYPES) {
+          const ji = analyzeLiuyao(chart, ct, qt, '吉凶')
+          const shi = analyzeLiuyao(chart, ct, qt, '時機')
+          expect(shi.score).toBe(ji.score)
+          expect(shi.sections).toEqual(ji.sections)
+          expect(shi.decisive).toEqual(ji.decisive)
+          expect(shi.yingQi).toBe(ji.yingQi)
+          expect(shi.yongShenDesc).toBe(ji.yongShenDesc)
+        }
+      }
+    }
+  })
+
+  it('問時機不出判語，問吉凶照常出；預設值為問吉凶（校準與舊呼叫端走的就是這條）', () => {
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    const chart = buildNajiaChart(castManual(1, 2, 2).ben, 2, ct)
+    const qt = QUESTION_TYPES.find(q => q.key === 'wealth')!
+    expect(analyzeLiuyao(chart, ct, qt, '時機').verdict).toBeNull()
+    expect(analyzeLiuyao(chart, ct, qt, '吉凶').verdict).not.toBeNull()
+    expect(analyzeLiuyao(chart, ct, qt).verdict).toBe(analyzeLiuyao(chart, ct, qt, '吉凶').verdict)
+    expect(analyzeLiuyao(chart, ct, qt).intent).toBe('吉凶')
+  })
+
+  it('用神不上卦時取伏神——全卦象掃描下，「連伏神都無」的早退路徑實際上走不到', () => {
+    // 這一條是先寫了測試才發現的：64 卦 × 6 動爻 × 全部問題類型，沒有任何一組會落到
+    // 「用神不上卦且首卦無伏神可取」。原因是六親由本宮五行推得，首卦必然備齊五類，
+    // 缺哪一類都能從首卦取到伏神。故該分支是防禦性的，不是實際會遇到的情況。
+    // 記在這裡是為了讓後人知道它為什麼沒有真實案例可測——而不是以為漏測了。
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    let noTarget = 0
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+        for (const qt of QUESTION_TYPES) {
+          if (analyzeLiuyao(chart, ct, qt).yongShenLine === null) noTarget++
+        }
+      }
+    }
+    expect(noTarget).toBe(0)
+  })
+
+  it('早退路徑本身仍須守 intent：以人工構造的盤直接驗證那三行', () => {
+    // 既然正常起卦到不了那條分支，就把盤改成「六爻皆兄弟且無伏神」再問妻財，
+    // 直接把它逼出來。不這樣做的話，那段程式碼會是全檔唯一沒有測試護欄的 return。
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    const chart = buildNajiaChart(castManual(1, 2, 2).ben, 2, ct)
+    const broken = { ...chart, lines: chart.lines.map(l => ({ ...l, liuqin: '兄弟' as const, fuShen: null })) }
+    const qt = QUESTION_TYPES.find(q => q.key === 'wealth')!
+    const ji = analyzeLiuyao(broken, ct, qt, '吉凶')
+    const shi = analyzeLiuyao(broken, ct, qt, '時機')
+    expect(ji.yongShenLine).toBeNull() // 確認真的走到了早退路徑
+    expect(ji.verdict).toBe('偏凶')
+    expect(shi.verdict).toBeNull()
+    expect(shi.score).toBe(ji.score)
+    expect(shi.sections).toEqual(ji.sections)
+  })
+})

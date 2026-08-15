@@ -80,6 +80,25 @@ export function findQuestionType(key: string): QuestionType | undefined {
     ?? QUESTION_TYPES.find(q => q.key === LEGACY_QT_KEYS[key])
 }
 
+/** 所問的意圖。這**不是**問題類型（用神取法），而是「這一卦要回答什麼」：
+ *
+ *  - `吉凶`——成不成？引擎照常出五級判語。
+ *  - `時機`——何時成？引擎**不出判語**，報告以應期為主體。
+ *
+ *  為什麼要分：第一批 4 則「問何時」型案例（#5 占父何日歸、#36 占囤貨何時得價、
+ *  #41 占僕人何日回、#52 占何年生子）古人**全部斷吉**——問「何時」的人預設事情會成，
+ *  只是問時間。加一條「問時點型問題 → 偏吉」的計分規則，第一批立刻多命中 2 則。
+ *
+ *  **但那正是「忌神持世」翻車的成因**：樣本 4 則、全部同向、且是看著失分案例才注意到的。
+ *  所以這裡刻意做成**介面上的區分而非計分規則**——那題本來就不是吉凶題，硬給判語才是錯的。
+ *
+ *  【安全性的證明】intent 完全不參與計分：score、sections、decisive、yingQi 都與它無關，
+ *  它只決定 verdict 要不要出。engine.test.ts 有一則測試釘住「兩種 intent 的 score 與
+ *  sections 逐字相同」。校準跑的一律是預設的 `吉凶`，故校準數字結構上不可能因此改變。 */
+export type AskIntent = '吉凶' | '時機'
+
+export type Verdict = '大吉' | '偏吉' | '平' | '偏凶' | '大凶'
+
 export interface ReportSection {
   title: string
   text: string
@@ -104,7 +123,12 @@ export interface LiuyaoReport {
   yongShenLine: LineInfo | null
   isFuShen: boolean
   score: number
-  verdict: '大吉' | '偏吉' | '平' | '偏凶' | '大凶'
+  /** 所問的意圖。決定 verdict 是否出現，不影響其餘任何欄位。 */
+  intent: AskIntent
+  /** 問時機時為 `null`——那題問的是「何時成」，不是「成不成」，硬給五級判語才是錯的。
+   *  型別上留 null 是刻意的：讓每個顯示判語的地方都被編譯器逼著處理這個情況，
+   *  而不是靠「記得在介面上藏起來」。 */
+  verdict: Verdict | null
   sections: ReportSection[]
   yingQi: string
   /** 本卦觸發的主導條件（可能為空）。正反同時觸發時互相抵銷，回歸一般加總。 */
@@ -220,7 +244,8 @@ function pickByLiuqin(chart: NajiaChart, lq: LiuQin): LineInfo | undefined {
   return cands.find(l => l.isDong) ?? cands.find(l => l.wangShuai === '旺' || l.wangShuai === '相') ?? cands[0]
 }
 
-export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType): LiuyaoReport {
+/** `intent` 預設 `吉凶`：校準與既有呼叫端一律走這條路徑，行為與加入此參數之前完全相同。 */
+export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType, intent: AskIntent = '吉凶'): LiuyaoReport {
   const sections: ReportSection[] = []
   const decisive: DecisiveCondition[] = []
   let score = 0
@@ -255,7 +280,8 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
 
   if (!target) {
     return {
-      yongShenDesc, yongShenLine: null, isFuShen, score: -2, verdict: '偏凶',
+      yongShenDesc, yongShenLine: null, isFuShen, score: -2,
+      intent, verdict: intent === '時機' ? null : '偏凶',
       sections: [{ title: '用神', text: yongShenDesc + '，事難有著落，所問之事恐無明確頭緒。' }],
       yingQi: '難以推斷', decisive: [],
     }
@@ -968,14 +994,20 @@ export function analyzeLiuyao(chart: NajiaChart, ct: ChartTime, qt: QuestionType
   // 原本「平」帶寬達 ±1.5，導致 53 則中有 14 則被判為平，而古籍實占僅 1 則作平論——
   // 卦本為決疑而起，模稜兩可的判語沒有意義。
   // 平帶保留 ±0.3，僅供生剋確實勢均力敵者使用。
-  let verdict: LiuyaoReport['verdict']
+  let verdict: Verdict
   if (finalScore >= 4) verdict = '大吉'
   else if (finalScore >= JI_THRESHOLD) verdict = '偏吉'
   else if (finalScore > -JI_THRESHOLD) verdict = '平'
   else if (finalScore > -4) verdict = '偏凶'
   else verdict = '大凶'
 
-  return { yongShenDesc, yongShenLine: target, isFuShen, score: finalScore, verdict, sections, yingQi, decisive }
+  // 問時機者不出判語。注意判語仍照常算完才丟棄——這樣 intent 就不可能從計分路徑的
+  // 任何一步偷偷影響結果，兩種 intent 的 score 與 sections 必然逐字相同。
+  return {
+    yongShenDesc, yongShenLine: target, isFuShen, score: finalScore,
+    intent, verdict: intent === '時機' ? null : verdict,
+    sections, yingQi, decisive,
+  }
 }
 
 // 生我者（用神之原神五行）
