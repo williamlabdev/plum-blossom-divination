@@ -317,17 +317,34 @@ function mkCt(monthBranch: Branch, dayStem: Stem, dayBranch: Branch, xunKong: [B
 }
 
 describe('旬空：真空與假空之分（旺不為空、動不為空、有生扶不為空）', () => {
-  it('真空：天澤履問父母，用神巳火休囚無氣、不動、日月動爻俱無生扶又落旬空 → 判真空並重扣', () => {
-    // 申月巳火為「囚」；甲午旬空辰巳；日辰庚子水剋巳火（非生扶）且子不沖巳；
-    // 動爻取五爻申金（火剋金，非生用神），確保三路生扶皆無，才構成真空
-    const ct = mkCt('申', '庚', '子', ['辰', '巳'])
-    const cast = castManual(1, 2, 5) // 天澤履，五爻申金動（非用神、且不生用神）
-    expect(cast.ben.gua.fullName).toBe('天澤履')
+  // 下面兩則是一對，釘住真空的**邊界**：同一卦、同一日、只換月建，
+  // 隔離出「月令死」與「月令休」這唯一一個變因。
+  // 《旬空章第二十六》：「真空即春土、夏金、秋木、三冬逢火是真空」——四組皆為月令所剋（死），
+  // 是枚舉而非「凡無氣者皆真空」。引擎舊寫法是「非旺相即真空」，把休、囚兩級也算了進去。
+  // 卦取乾為天動初爻、甲子日空戌亥，用神為上爻戌土父母（父母兩現，旬空者優先）：
+  // 日辰子水為用神所剋而非生扶，子不沖戌，動爻初爻子水亦不生土，三路生扶皆無。
+  it('真空：乾為天問父母，用神戌土於寅月為「死」、不動、日月動爻俱無生扶又落旬空 → 判真空並重扣', () => {
+    const ct = mkCt('寅', '甲', '子', ['戌', '亥']) // 寅月木剋土，戌土死——即「春土」
+    const cast = castManual(1, 1, 1)
+    expect(cast.ben.gua.fullName).toBe('乾為天')
     const chart = buildNajiaChart(cast.ben, cast.dong, ct)
     const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'elders')!)
     const k = r.sections.find(s => s.title === '旬空')
-    expect(k?.text).toContain('真空')
+    expect(k?.text).toContain('是為「真空」')
     expect(k?.text).toContain('恐終成畫餅')
+    expect(r.yongShenGen.zhenKong).toBe(true)
+  })
+
+  it('休囚而空不是真空：同卦同日只改申月，戌土為「休」→ 不入真空之列，不得說畫餅', () => {
+    const ct = mkCt('申', '甲', '子', ['戌', '亥']) // 申月土生金，戌土休——不在那四組之列
+    const cast = castManual(1, 1, 1)
+    const chart = buildNajiaChart(cast.ben, cast.dong, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'elders')!)
+    const k = r.sections.find(s => s.title === '旬空')
+    expect(k?.text).toContain('未至死絕')
+    expect(k?.text).not.toContain('是為「真空」')
+    expect(k?.text).not.toContain('畫餅')
+    expect(r.yongShenGen.zhenKong).toBe(false)
   })
 
   it('旺空為假空：天澤履問子女，用神申金於申月當旺而落旬空 → 只論待時，不作真空', () => {
@@ -1043,6 +1060,12 @@ describe('用神有根：從斷語文字結構化成欄位（時點推演接回�
     ['寅', '庚', '午', ['辰', '巳']],
     ['未', '丁', '酉', ['午', '未']],
     ['亥', '壬', '寅', ['申', '酉']],
+    // 最後這組是為了讓「真空」取樣得到才加的，別拿掉。真空收緊為「月令死」之後
+    // （《旬空章第二十六》「真空即春土、夏金、秋木、三冬逢火」），前四組**沒有一組**
+    // 能產生真空：申月空戌亥、未月空午未、亥月空申酉，空爻都不是該月所剋；
+    // 寅月空辰巳雖有辰土死於木月，卻被日辰午火生扶而不為空。
+    // 寅月甲子日空戌亥：戌土死於木月，日辰子水為土所剋而非生扶，這才構成真空。
+    ['寅', '甲', '子', ['戌', '亥']],
   ]
   const eachChart = (fn: (r: ReturnType<typeof analyzeLiuyao>, ct: ChartTime) => void) => {
     for (const [m, ds, db, xk] of CTS) {

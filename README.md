@@ -28,7 +28,7 @@
 ```bash
 npm install
 npm run dev      # 開發伺服器
-npm test         # 全部測試（131 項，含準確度回歸防線）
+npm test         # 全部測試（132 項，含準確度回歸防線）
 npm run lint     # oxlint
 npm run build    # 產生 dist/（含 PWA service worker）
 npm run preview  # 預覽正式版
@@ -185,7 +185,7 @@ push 到 main 會自動測試、建置、上線）：
 
 ## 測試
 
-`npm test` 共 131 項：
+`npm test` 共 132 項：
 
 - `engine.test.ts`——曆法、起卦、裝卦（對照星僑軟體逐欄核對）、各項斷卦規則、
   重複計分與自相矛盾的回歸測試、資料完整性、術語涵蓋率
