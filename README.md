@@ -140,8 +140,11 @@ npm test -- calibration
 
 ## 部署與 iOS 安裝
 
-已內建 GitHub Pages 自動部署（`.github/workflows/deploy.yml`，push 到 main
-會自動測試、建置、上線）：
+**已上線：https://williamlabdev.github.io/plum-blossom-divination/**
+iPhone 用 Safari 開啟 → 分享 → **加入主畫面**，之後即為全螢幕離線 App。
+
+要自行部署一份的話，已內建 GitHub Pages 自動部署（`.github/workflows/deploy.yml`，
+push 到 main 會自動測試、建置、上線）：
 
 1. 在 GitHub 建立 repo，把本專案推上去：
 
@@ -152,10 +155,13 @@ npm test -- calibration
    git push -u origin main
    ```
 
-2. GitHub repo → Settings → Pages → Source 選 **GitHub Actions**
-   （新 repo 首次必須手動選一次，這是 GitHub 的安全限制，無法自動化）
+2. GitHub repo → Settings → Pages → Source 選 **GitHub Actions**，
+   或等效的 `gh api -X POST repos/<帳號>/<repo>/pages -f build_type=workflow`
+
+   **這一步不能省。** workflow 裡雖然寫了 `enablement: true`，但 Actions 的內建
+   `GITHUB_TOKEN` 無權建立 Pages site，不先手動建一次的話每次 run 都會失敗在
+   `configure-pages` 這一步（訊息是 `Resource not accessible by integration`）。
 3. 等 Actions 跑完，網址是 `https://<帳號>.github.io/<repo>/`
-4. iPhone 用 Safari 開啟網址 → 分享 → **加入主畫面**，之後即為全螢幕離線 App
 
 （`vite.config.ts` 已設相對路徑，部署到子路徑或其他靜態託管皆可直接用）
 

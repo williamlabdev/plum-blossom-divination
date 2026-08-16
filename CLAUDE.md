@@ -591,17 +591,36 @@ curl -sL -o 易隐.txt "https://raw.githubusercontent.com/garychowcmu/daizhigev2
 - 感情只有男問／女問二分，無中性選項，同性伴侶無對應
 - 缺「求職換工作」（會卡在事業官運 vs 文書契約之間，兩者用神相反）與「尋人」
 
-### 6. 部署
+### ~~6. 部署~~ ── 已完成（2026-08-16）
 
-`.github/workflows/deploy.yml` 已就緒，但 GitHub Pages 首次需**手動**在
-Settings → Pages → Source 選 GitHub Actions（GitHub 對新 repo 的安全限制，無法自動化）。
-至今尚未完成，網站仍 404。
+網站已上線：**https://williamlabdev.github.io/plum-blossom-divination/**（HTTP 200）。
+`.github/workflows/deploy.yml` 每次 push 到 main 會跑 test → build → deploy。
+
+**卡了這麼久的根因值得記著**：workflow 一直失敗在 `actions/configure-pages@v5` 的
+`enablement: true`（每次 11 秒就死），錯誤是 `Create Pages site failed:
+Resource not accessible by integration`。**這不是 `permissions:` 沒給對——Actions 的內建
+`GITHUB_TOKEN` 結構上就無權建立 Pages site**，給再多權限也一樣。site 必須先由外部憑證
+建立一次，之後 workflow 才有得部署：
+
+```bash
+gh api -X POST repos/williamlabdev/plum-blossom-divination/pages -f build_type=workflow
+```
+
+（等同於 Settings → Pages → Source 選 GitHub Actions。不需要另建 PAT，`gh` 的
+`repo` scope 就夠；也不要為此把 PAT 長期放進 repo secrets——這是一次性動作。）
+
+**這也代表在此之前 CI 從未執行過測試。** 第一次真正跑起來是 run `31920029235`
+（2026-08-16）：4 檔 131 項全綠、build 成功、deploy 成功。在那之前 README／CLAUDE.md
+所有「131 項全過」都只是本地證據。
 
 ---
 
 ## 目前狀態
 
-- 最新改動為四項原文校訂（2026-08-16，見該節），第一批 75.5% → **79.2%**
+- 最新改動為四項原文校訂（2026-08-16，見該節），第一批 75.5% → **79.2%**，已入庫 `59fc778`
+- **CI 已修好並第一次真的跑起測試**（2026-08-16，run `31920029235`：131 項全綠、
+  build 與 deploy 皆成功），網站上線於 https://williamlabdev.github.io/plum-blossom-divination/ 。
+  根因與那行一次性指令見 backlog #6
 - 測試 131 項全過；`npx tsc -b`、`npx oxlint src`、`npm run build` 皆乾淨。
   **UI 未重跑**——這幾次改動都不觸及 UI 路徑，上一次 playwright 實跑是時點推演那版
 - **保留集與整體命中率是舊值，已從表中撤下，不要引用**。四項校訂之後未重跑保留集，
