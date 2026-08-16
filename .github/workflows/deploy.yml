@@ -18,18 +18,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      # enablement 已無作用：Pages site 早在 0816 用 `gh api -X POST .../pages` 手動建好了
+      # （Actions 的內建 GITHUB_TOKEN 結構上無權建立，見 CLAUDE.md backlog #6）。
+      # 留著只會在 site 被刪掉時重演那次 11 秒失敗，故拿掉。
+      - uses: actions/configure-pages@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -41,4 +42,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

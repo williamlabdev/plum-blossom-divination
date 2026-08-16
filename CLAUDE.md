@@ -767,6 +767,14 @@ gh api -X POST repos/williamlabdev/plum-blossom-divination/pages -f build_type=w
 （2026-08-16）：4 檔 131 項全綠、build 成功、deploy 成功。在那之前 README／CLAUDE.md
 所有「131 項全過」都只是本地證據。
 
+**Node 20 → 24（2026-08-16 晚）**：四個 action 都升到 node24 runtime，deprecation
+annotation 清掉——`checkout@v4→v7`、`configure-pages@v5→v6`、`setup-node@v4→v7`、
+`upload-pages-artifact@v3→v5`、`deploy-pages@v4→v5`。`upload-pages-artifact` 是
+composite，內部 `upload-artifact@v7.0.0` 也已是 node24，整條鏈乾淨。
+**順帶拿掉 `enablement: true`**：site 早已手動建好，而 v6 的 input 說明現在明文寫著
+「requires a token other than `GITHUB_TOKEN`」——正是上面那個根因，留著只會在
+site 被刪時重演那次 11 秒失敗。（`node-version: 22` 是我們自己跑測試用的，與此無關，不動。）
+
 ---
 
 ## 目前狀態
@@ -780,8 +788,11 @@ gh api -X POST repos/williamlabdev/plum-blossom-divination/pages -f build_type=w
 - **CI 已修好並第一次真的跑起測試**（2026-08-16，run `31920029235`：131 項全綠、
   build 與 deploy 皆成功），網站上線於 https://williamlabdev.github.io/plum-blossom-divination/ 。
   根因與那行一次性指令見 backlog #6
-- 測試 132 項全過；`npx tsc -b`、`npx oxlint src`、`npm run build` 皆乾淨。
-  **UI 未重跑**——這幾次改動都不觸及 UI 路徑，上一次 playwright 實跑是時點推演那版
+- 測試 132 項全過；`npx tsc -b`、`npx oxlint src`、`npm run build` 皆乾淨
+- **UI 已實跑驗證**（2026-08-16 晚，playwright + `vite preview`）：手機 390×844 與桌機
+  1280 兩種寬度、問吉凶與問時機兩種 intent，走完數字起卦→排盤→紀錄→名詞卡。
+  判語卡在視窗內（起卦後 `scrollY=0`，y=185）、問時機判語卡改顯「應期」且時點推演
+  十二格色階自動展開、紀錄 2 筆、桌機無水平捲動、**console 零錯誤**。截圖逐張看過
 - **保留集與整體命中率是舊值，已從表中撤下，不要引用**。四項校訂之後未重跑保留集，
   理由見校準那一節。已知下界：常設防線「保留集領先 ≥8pp」仍過關
 - 0815 那三次改動對命中率的影響為零，且是驗過的：行為不變的重構
