@@ -3,7 +3,7 @@ import type { ChartTime } from './calendar'
 import { getChartTime } from './calendar'
 import { castByNumbers, castByTime, castManual, drawRandom, hexagramFromLines, randomInt } from './casting'
 import type { Branch, Stem } from './data/core'
-import { BRANCHES, chouShenOf, jiShenOf, yuanShenOf } from './data/core'
+import { BRANCHES, chouShenOf, jiShenOf, jinTuiShen, yuanShenOf } from './data/core'
 import { buildNajiaChart, chartAt, frameOf, guaXingOf, lineAt, timingOf, withMonthBranch } from './najia'
 import { JI_THRESHOLD, QUESTION_GROUPS, QUESTION_TYPES, analyzeAt, analyzeLiuyao, findQuestionType, projectMonths } from './interpret'
 import { ZHOUYI } from './data/zhouyi'
@@ -1030,5 +1030,262 @@ describe('時間框架：旺衰與月破旬空可帶任意月建重算（backlog
         }
       }
     }
+  })
+})
+
+describe('用神有根：從斷語文字結構化成欄位（時點推演接回計分的前置）', () => {
+  // 這組測試守的不是「有根判得準不準」，而是**欄位與斷語不得分岔**。
+  // 判定式原本就散在旬空段與原神段裡，抽成欄位只是搬家（抽出前後 64,512 筆
+  // 完整輸出逐字比對 Δ=0）。真正的風險在往後：有人改了斷語卻沒改欄位，
+  // 或反過來，於是外面拿到的 hasRoot 與報告上寫的話不是同一件事。
+  const CTS: [Branch, Stem, Branch, [Branch, Branch]][] = [
+    ['申', '甲', '子', ['戌', '亥']],
+    ['寅', '庚', '午', ['辰', '巳']],
+    ['未', '丁', '酉', ['午', '未']],
+    ['亥', '壬', '寅', ['申', '酉']],
+  ]
+  const eachChart = (fn: (r: ReturnType<typeof analyzeLiuyao>, ct: ChartTime) => void) => {
+    for (const [m, ds, db, xk] of CTS) {
+      const ct = mkCt(m, ds, db, xk)
+      for (let n = 0; n < 64; n++) {
+        const lines = [0, 0, 0, 0, 0, 0]
+        for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+        for (let d = 1; d <= 6; d++) {
+          const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+          for (const qt of QUESTION_TYPES) fn(analyzeLiuyao(chart, ct, qt), ct)
+        }
+      }
+    }
+  }
+
+  it('zhenKong 與旬空段的斷語一致：說「真空」才是真空，說假空就不是', () => {
+    let zhen = 0, jia = 0
+    eachChart(r => {
+      const kong = r.sections.find(s => s.title === '旬空')
+      if (!kong) return // 不落空、或占病走專斷，此段不出現
+      const saysZhen = kong.text.includes('是為「真空」')
+      expect(r.yongShenGen.zhenKong).toBe(saysZhen)
+      if (saysZhen) zhen++
+      else jia++
+    })
+    expect(zhen).toBeGreaterThan(0) // 兩種都要取樣得到，否則這則測試沒在測東西
+    expect(jia).toBeGreaterThan(0)
+  })
+
+  it('占病不出旬空段，但真空與否是卦的結構，不因所問是病而被抹成 false', () => {
+    // 旬空段只在 !isBing 時出現（占病另有「近病逢空即愈」的反向專斷）。
+    // 欄位刻意不跟著消失——問的是什麼事，不會讓用神長出根來。
+    // 兩個占病類型的用神同為世爻，故可與非病類型逐卦對照。
+    const bing = QUESTION_TYPES.filter(q => q.bingType)
+    const shiFei = QUESTION_TYPES.find(q => q.yongShen === '世爻' && !q.bingType)!
+    expect(bing).toHaveLength(2)
+    let zhenUnderBing = 0
+    for (const [m, ds, db, xk] of CTS) {
+      const ct = mkCt(m, ds, db, xk)
+      for (let n = 0; n < 64; n++) {
+        const lines = [0, 0, 0, 0, 0, 0]
+        for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+        for (let d = 1; d <= 6; d++) {
+          const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+          const ref = analyzeLiuyao(chart, ct, shiFei)
+          for (const qt of bing) {
+            const r = analyzeLiuyao(chart, ct, qt)
+            expect(r.sections.find(s => s.title === '旬空')).toBeUndefined()
+            expect(r.yongShenGen).toEqual(ref.yongShenGen) // 與同取世爻的非病類型逐欄相同
+            if (r.yongShenGen.zhenKong) zhenUnderBing++
+          }
+        }
+      }
+    }
+    expect(zhenUnderBing).toBeGreaterThan(0) // 真的取樣到「占病且真空」，否則上一行測不到東西
+  })
+
+  it('hasRoot 的兩條否決是真空與「真」破，不是月破；動爻生扶不算根', () => {
+    // 「雖有生扶生之不起，如樹無根」——元神動來生補不了用神自己沒氣，
+    // 所以 dongFu 不得單獨撐起 hasRoot。這一條是原文的重點，不是實作取捨。
+    let dongOnly = 0
+    eachChart(r => {
+      const g = r.yongShenGen
+      if (g.zhenPo || g.zhenKong) expect(g.hasRoot).toBe(false)
+      if (g.hasRoot) expect(g.youQi || g.dayFu || g.monthFu).toBe(true)
+      if (g.dongFu && !g.youQi && !g.dayFu && !g.monthFu) {
+        expect(g.hasRoot).toBe(false)
+        dongOnly++
+      }
+    })
+    expect(dongOnly).toBeGreaterThan(0) // 真的取樣到「只有動爻生扶」的卦
+  })
+
+  it('真破是月破的子集，且月破而動／得日辰動爻生助者不作真破', () => {
+    let poDong = 0
+    eachChart(r => {
+      const g = r.yongShenGen
+      if (g.zhenPo) expect(g.yuePo).toBe(true)
+      if (g.yuePo && (g.ziDong || g.dayFu || g.dongFu)) {
+        expect(g.zhenPo).toBe(false) // 「目下雖破，出月則不破」
+        poDong++
+      }
+      if (g.yuePo && !g.ziDong && !g.dayFu && !g.dongFu) {
+        expect(g.zhenPo).toBe(true) // 「惟靜而不動又無日辰動爻生助者則到底而破矣」
+      }
+    })
+    expect(poDong).toBeGreaterThan(0)
+  })
+
+  it('yuanYouLi 與原神忌神段一致；用神為伏神時該段不展開，欄位維持 false', () => {
+    eachChart(r => {
+      if (r.isFuShen) {
+        expect(r.sections.find(s => s.title === '原神忌神')).toBeUndefined()
+        expect(r.yongShenGen.yuanYouLi).toBe(false)
+        return
+      }
+      const yj = r.sections.find(s => s.title === '原神忌神')
+      if (!yj || !r.yongShenLine) return
+      expect(r.yongShenGen.yuanYouLi).toBe(yj.text.includes('有力，生扶得實'))
+    })
+  })
+
+  it('四個判定式都不得退化成常數：每一項在卦象空間裡都要兩種值都出現', () => {
+    // 搬家型重構最容易壞在「某個變數永遠是 false 也沒人發現」。
+    const keys = ['hasRoot', 'youQi', 'yuePo', 'zhenPo', 'zhenKong',
+      'dayFu', 'monthFu', 'dongFu', 'ziDong', 'yuanYouLi'] as const
+    const seen: Record<string, Set<boolean>> = {}
+    for (const k of keys) seen[k] = new Set()
+    eachChart(r => { for (const k of keys) seen[k].add(r.yongShenGen[k]) })
+    for (const k of keys) expect([k, seen[k].size]).toEqual([k, 2])
+  })
+
+  it('兩種 intent 的 yongShenGen 必須逐欄相同——它不是判語，不受所問形式影響', () => {
+    const ct = mkCt('申', '甲', '子', ['戌', '亥'])
+    for (let n = 0; n < 64; n++) {
+      const lines = [0, 0, 0, 0, 0, 0]
+      for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+      for (let d = 1; d <= 6; d++) {
+        const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+        for (const qt of QUESTION_TYPES) {
+          expect(analyzeLiuyao(chart, ct, qt, '時機').yongShenGen)
+            .toEqual(analyzeLiuyao(chart, ct, qt, '吉凶').yongShenGen)
+        }
+      }
+    }
+  })
+})
+
+describe('進神退神：土支在列（照《增刪卜易・進神退神章第二十九》原文列舉）', () => {
+  // 此表原本只有四組，並附註「辰戌丑未土支不在其列」——那句話是錯的。
+  // 同一章底下的兩則案例（校準 #8、#10）用的正是上爻戌化未。
+  it('原文七進七退，一組不多一組不少', () => {
+    const jin: [Branch, Branch][] = [['亥', '子'], ['寅', '卯'], ['巳', '午'], ['申', '酉'],
+      ['丑', '辰'], ['辰', '未'], ['未', '戌']]
+    for (const [a, b] of jin) {
+      expect(jinTuiShen(a, b)).toBe('進神')
+      expect(jinTuiShen(b, a)).toBe('退神')
+    }
+    // 土的遞進是 丑→辰→未→戌 的線性序，原文沒有收尾那一組，不得自行補成循環
+    expect(jinTuiShen('戌', '丑')).toBeNull()
+    expect(jinTuiShen('丑', '戌')).toBeNull()
+    // 同五行但非相鄰、或不同五行者一律不算
+    expect(jinTuiShen('丑', '未')).toBeNull()
+    expect(jinTuiShen('亥', '寅')).toBeNull()
+  })
+
+  it('戌化未確實被斷為退神（校準 #10：戌月癸未日占病得乾為天上爻動）', () => {
+    const ct = mkCt('戌', '癸', '未', ['申', '酉'])
+    const chart = buildNajiaChart(castManual(1, 1, 6).ben, 6, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'elders')!)
+    expect(r.sections.find(s => s.title === '動爻變爻')!.text).toContain('戌化未為「退神」')
+  })
+})
+
+describe('月破：野鶴的修正——真破與「目下破」之分（《月破章第二十七》）', () => {
+  // 諸書：「用神臨月破如悖時也，即是枯根木…雖有日辰之生，亦不能生」。
+  // 野鶴：「余得其驗…目下雖破，出月則不破…惟靜而不動又無日辰動爻生助者，則到底而破矣。」
+  // 引擎原本一律 −3，實作的正是野鶴指名要捨棄的那一套。
+  it('校準 #5 原案：辰月戊子日占父何日歸得乾之夬，父母戌土持世而動 → 不作到底而破', () => {
+    const ct = mkCt('辰', '戊', '子', ['午', '未'])
+    const chart = buildNajiaChart(castManual(1, 1, 6).ben, 6, ct)
+    const r = analyzeLiuyao(chart, ct, QUESTION_TYPES.find(q => q.key === 'elders')!)
+    const m = r.sections.find(s => s.title === '月建日辰')!.text
+    expect(m).toContain('月破')
+    expect(m).toContain('出月則不破')
+    expect(m).not.toContain('真破')
+    expect(r.yongShenGen.yuePo).toBe(true)
+    expect(r.yongShenGen.zhenPo).toBe(false)
+    // 野鶴不以古法論之，竟斷「卯日有信，午未日必歸」，果於乙未日到家
+    expect(r.yongShenGen.hasRoot).toBe(true)
+  })
+
+  it('斷語與欄位不得分岔：說「到底而破」才是真破，說「出月則不破」就不是', () => {
+    for (const [m, ds, db, xk] of ([['申', '甲', '子', ['戌', '亥']], ['寅', '庚', '午', ['辰', '巳']],
+      ['未', '丁', '酉', ['午', '未']], ['亥', '壬', '寅', ['申', '酉']]] as [Branch, Stem, Branch, [Branch, Branch]][])) {
+      const ct = mkCt(m, ds, db, xk)
+      for (let n = 0; n < 64; n++) {
+        const lines = [0, 0, 0, 0, 0, 0]
+        for (let i = 0; i < 6; i++) lines[i] = (n >> i) & 1
+        for (let d = 1; d <= 6; d++) {
+          const chart = buildNajiaChart(hexagramFromLines(lines), d, ct)
+          for (const qt of QUESTION_TYPES) {
+            const r = analyzeLiuyao(chart, ct, qt)
+            const t = r.sections.find(s => s.title === '月建日辰')?.text ?? ''
+            expect(t.includes('是為真破')).toBe(r.yongShenGen.zhenPo)
+            if (r.yongShenGen.yuePo && !r.yongShenGen.zhenPo && r.yongShenLine) {
+              expect(t).toContain('出月則不破')
+            }
+          }
+        }
+      }
+    }
+  })
+})
+
+describe('占病：卦逢六沖／卦變六沖列為主導條件（近病愈、久病死）', () => {
+  // 《增刪卜易》占病門逐條把它與逢空、化空並列，且用同一個語級：
+  // 近病「不須服藥，即許安痊」、久病「遲者扁鵲難醫」。〈六沖章〉：「久病妙藥難調」。
+  const ct = mkCt('戌', '癸', '未', ['申', '酉'])
+  const bing = (key: string, t: '近病' | '久病') => {
+    const base = QUESTION_TYPES.find(q => q.key === key)!
+    return { ...base, bingType: t }
+  }
+
+  it('乾為天（本卦六沖）：久病定凶、近病定吉，方向相反', () => {
+    const chart = buildNajiaChart(castManual(1, 1, 6).ben, 6, ct)
+    const qt = QUESTION_TYPES.find(q => q.key === 'elders')!
+    const jiu = analyzeLiuyao(chart, ct, { ...qt, bingType: '久病' })
+    const jin = analyzeLiuyao(chart, ct, { ...qt, bingType: '近病' })
+    expect(jiu.decisive.find(d => d.name === '久病卦逢六沖')?.direction).toBe(-1)
+    expect(jin.decisive.find(d => d.name === '近病卦逢六沖')?.direction).toBe(1)
+    // 校準 #10 的古人原話即「久病逢沖莫治，又是父爻持世，妙藥難醫」
+    expect(jiu.verdict === '偏凶' || jiu.verdict === '大凶').toBe(true)
+  })
+
+  it('不重複計分：沖合的分數由卦格段獨佔，占病段只推主導條件、不再敘述一次', () => {
+    const chart = buildNajiaChart(castManual(1, 1, 6).ben, 6, ct)
+    const r = analyzeLiuyao(chart, ct, bing('elders', '久病'))
+    expect(r.sections.find(s => s.title === '占病')!.text).not.toContain('六沖')
+    expect(r.sections.find(s => s.title === '卦格')!.text).toContain('六沖')
+  })
+
+  it('非六沖卦不觸發，避免主導條件被濫用', () => {
+    // 水風井變地風升：本卦與變卦皆非六沖（履之無妄那類「變卦才是六沖」的也算觸發，不可用）
+    const chart = buildNajiaChart(castManual(6, 5, 5).ben, 5, ct)
+    const r = analyzeLiuyao(chart, ct, bing('elders', '久病'))
+    expect(r.decisive.some(d => d.name.includes('六沖'))).toBe(false)
+  })
+})
+
+describe('占病：用神為伏神時，不得把飛神的六親當成用神的六親', () => {
+  // 校準 #48（卜筮正宗第五問，未月丁巳日占嫂復病得山地剝上爻動）：
+  // 用神兄弟不上卦，伏於五爻子水子孫之下。原本兩處寫 `target.liuqin`，
+  // 於是飛神（子孫）被當成用神，斷出「子孫持世而子孫即用神本身」——用神明明是申金兄弟。
+  it('#48 原案：飛神為子孫而用神是伏著的兄弟，不得斷為「用神即子孫」', () => {
+    const ct = mkCt('未', '丁', '巳', ['子', '丑'])
+    const chart = buildNajiaChart(castManual(7, 8, 6).ben, 6, ct)
+    const base = QUESTION_TYPES.find(q => q.key === 'partner')!
+    const r = analyzeLiuyao(chart, ct, { ...base, bingType: '久病' })
+    expect(r.isFuShen).toBe(true)
+    expect(r.yongShenDesc).toContain('伏')
+    const bt = r.sections.find(s => s.title === '占病')!.text
+    expect(bt).not.toContain('子孫即用神本身')
+    expect(bt).toContain('子孫持世') // 子孫是醫藥、不是用神，該走醫藥那一路
   })
 })

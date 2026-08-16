@@ -122,6 +122,55 @@ export interface DecisiveCondition {
   reason: string
 }
 
+/** 用神有沒有根。
+ *
+ *  《增刪卜易・元神忌神衰旺章》：「亦要用神有氣。倘若用神無根，謂之元神有力亦難生」。
+ *  這件事引擎本來就在算——旬空段算真空與生扶、原神段算元神有力——但兩段各自算完
+ *  就丟進斷語文字裡，外面拿不到。抽成欄位是為了讓它**可被判定、可被測試**。
+ *
+ *  **它不參與計分。** 抽出前後 64,512 筆完整輸出（含每一段斷語文字）逐字比對 Δ=0；
+ *  這裡的每個布林值都是既有判定式原地搬家，沒有新增任何判準。
+ *
+ *  用途：古法允許斷「遲而後成」的前提是用神有根，不是光看某月得令
+ *  （見 CLAUDE.md「未來十二月內有轉吉之月 → 改判吉」那個 −11.3pp 的負面結果）。
+ *  要把時點推演接回計分，這是唯一可辯護的入口。**但有了欄位不等於可以接**——
+ *  接之前仍需在獨立語料上驗證。 */
+export interface YongShenGen {
+  /** 有根：非真空、非真破，且「月令有氣」或「得月建日辰生扶」至少居其一。
+   *
+   *  **動爻生扶不算根**，這是原文的重點而不是取捨：《元神忌神衰旺章》那則自占病，
+   *  用神亥水被未土忌神動剋、幸得酉金元神亦動、忌神反生元神接續相生，看似化凶為吉，
+   *  野鶴卻斷「其如亥水月沖日剋，值月破而被剋，**雖有生扶生之不起，如樹無根**，
+   *  寒谷不回春也」，果卒於癸卯日——**「此謂之用神無根，元神有力亦難生」**。
+   *  整句話要說的就是「別人來生」補不了「自己沒氣」；把 `dongFu` 算進有根，
+   *  等於把這句話反過來實作。（此欄位初版正是這麼寫的，2026-08-16 讀原文後改正。）
+   *
+   *  月破只有**真破**才否決，不是一律否決：見 `zhenPo` 與月建段的月破長註。 */
+  hasRoot: boolean
+  /** 月令有氣（旺或相） */
+  youQi: boolean
+  /** 月破（用神為月建所沖）。這只是「目下破」，是否到底而破看 `zhenPo`。 */
+  yuePo: boolean
+  /** 真破：月破而又靜而不動、又無日辰動爻生助，《月破章》所謂「到底而破」。 */
+  zhenPo: boolean
+  /** 真空：落旬空、又不發動、又無氣、又全無生扶。
+   *  這是結構判定，與所問是否為占病無關——占病另有「近病逢空即愈」的專斷，
+   *  但那改的是吉凶方向，不是用神有沒有根。故此處不看 `bingType`，
+   *  與旬空段（`yKong && !isBing` 才計分）刻意不同。 */
+  zhenKong: boolean
+  /** 日辰生扶（日辰生用神或與之比和，且用神未被日辰所沖） */
+  dayFu: boolean
+  /** 月建生扶（月建生用神或與之比和） */
+  monthFu: boolean
+  /** 他爻發動來生用神（即原神發動） */
+  dongFu: boolean
+  /** 用神自身發動——「動不為空」。伏神為用神時不計。 */
+  ziDong: boolean
+  /** 原神靜而有力。用神為伏神時原神段整段不展開，此處一律 false，
+   *  不是「原神無力」而是「未判定」——要用它的人請一併看 `isFuShen`。 */
+  yuanYouLi: boolean
+}
+
 export interface LiuyaoReport {
   yongShenDesc: string
   yongShenLine: LineInfo | null
@@ -134,6 +183,8 @@ export interface LiuyaoReport {
    *  而不是靠「記得在介面上藏起來」。 */
   verdict: Verdict | null
   sections: ReportSection[]
+  /** 用神有根與否。純結構化欄位，不參與計分——見 `YongShenGen`。 */
+  yongShenGen: YongShenGen
   yingQi: string
   /** 本卦觸發的主導條件（可能為空）。正反同時觸發時互相抵銷，回歸一般加總。 */
   decisive: DecisiveCondition[]
@@ -295,6 +346,12 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
       yongShenDesc, yongShenLine: null, isFuShen, score: -2,
       intent, verdict: intent === '時機' ? null : '偏凶',
       sections: [{ title: '用神', text: yongShenDesc + '，事難有著落，所問之事恐無明確頭緒。' }],
+      // 用神根本不上卦也無伏神可取，無爻可論根：全部 false。
+      // 這與「判定過、結論是無根」不同，但外面能靠 yongShenLine === null 分辨。
+      yongShenGen: {
+        hasRoot: false, youQi: false, yuePo: false, zhenPo: false, zhenKong: false,
+        dayFu: false, monthFu: false, dongFu: false, ziDong: false, yuanYouLi: false,
+      },
       yingQi: '難以推斷', decisive: [],
     }
   }
@@ -365,17 +422,51 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
   const yKong = yTiming.isXunKong // 用神本身（伏神時以伏神地支論）是否旬空
   sections.push({ title: '用神', text: yongShenDesc + `。${qt.note}。` })
 
-  // 2. 月建
   const mEl = BRANCH_ELEMENT[frame.monthBranch]
   const mRel = relation(mEl, yEl)
+  const dEl = BRANCH_ELEMENT[frame.dayBranch]
+  const dRel = relation(dEl, yEl)
   const yWang = yTiming.wangShuai // 用神以月令論旺衰
   const yYouQi = yWang === '旺' || yWang === '相' // 月令有氣：旺相為有氣，休囚死為無氣
   const yRiChong = yTiming.isRiChong // 用神是否被日辰所沖
   const yYuePo = yTiming.isYuePo // 用神是否月破
+
+  // 生扶的三個來源與「用神自身發動」。月破與旬空兩段都要用，故先算。
+  const dayFu = !yRiChong && (dRel === '我生' || dRel === '比和') // 日辰生扶
+  const monthFu = mRel === '我生' || mRel === '比和' // 月建生扶
+  const dongFu = chart.lines.some(l => // 他爻發動來生用神（原神動）
+    l.isDong && l.pos !== target.pos && relation(l.sb.element, yEl) === '我生')
+  const yongDong = target.isDong && !isFuShen // 用神自身發動（伏神不計）
+  // 真空：落旬空、又不發動、又無氣、又全無生扶。這是結構判定，不看 isBing——
+  // 占病另有專斷，但那改的是吉凶方向，不是用神有沒有根。
+  const zhenKong = yKong && !yongDong && !yYouQi && !dayFu && !monthFu && !dongFu
+  // 真破：《增刪卜易・月破章第二十七》野鶴的修正，見下方月建段的長註。
+  const yuePoZhen = yYuePo && !yongDong && !dayFu && !dongFu
+
+  // 2. 月建
   let mText: string
   if (yYuePo) {
-    mText = `用神${yBranch}${yEl}逢月建${frame.monthBranch}沖，是為「月破」，大受挫傷`
-    score -= 3
+    // 月破分真破與「目下破」，這是野鶴推翻諸書的一條，不是折衷。
+    // 諸書：「用神臨月破如悖時也，即是枯根木，逢生生之不起…雖有日辰之生，亦不能生」。
+    // 野鶴：「余得其驗，動則能傷於爻，變則能傷於動……目下雖破，出月則不破，今日雖破，
+    //        實破之日則不破，合之日則不破，近應日遠應年月。
+    //        **惟靜而不動又無日辰動爻生助者，則到底而破矣。**」
+    // 引擎原本一律 −3，實作的正是野鶴指名要捨棄的那一套——與「用神多現」當初的錯法同型。
+    // 校準 #5 就是這一章的原案：辰月戊子日占父何日歸得乾之夬，父母戌土持世而動。
+    // 野鶴原話：「以古法斷者，作用神而無氣，其父不能歸也。**余不以此論之**」，
+    // 竟斷卯日有信、午未日必歸，果於卯日得信、乙未日到家。
+    if (yuePoZhen) {
+      mText = `用神${yBranch}${yEl}逢月建${frame.monthBranch}沖，靜而不動又無日辰動爻生助，是為真破，到底而破`
+      score -= 3
+    } else {
+      // 目下破而非到底破。扣分刻意壓在與旬空段「有生扶不為空／遲而未顯」同一級（−0.6）：
+      // 兩者是同一個形狀的斷語——事不是不成，是此刻未到。這個數值是類比既有項取的，
+      // 沒有掃描過命中率（掃描就成了用語料調參）。
+      const why = yongDong ? '然用神發動' : dayFu ? '然得日辰生助' : '然得動爻生助'
+      mText = `用神${yBranch}${yEl}逢月建${frame.monthBranch}沖為「月破」，${why}，`
+        + `古法「目下雖破，出月則不破」，不作到底之破，只是此刻未到其時`
+      score -= 0.6
+    }
   } else if (mRel === '我生') {
     mText = `月建${frame.monthBranch}${mEl}生用神，得月令生扶，氣勢有根`
     score += 2
@@ -394,8 +485,6 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
   }
 
   // 3. 日辰
-  const dEl = BRANCH_ELEMENT[frame.dayBranch]
-  const dRel = relation(dEl, yEl)
   let dText: string
   const isBing = !!qt.bingType
   if (yRiChong && isBing) {
@@ -440,14 +529,9 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
   //    「有生扶」須通盤看：日辰生扶、月建生扶、他爻發動來生皆算，不可只看日辰
   //    唯休囚無氣、又不發動、又全無生扶者，方為「真空」，事乃真正落空
   if (yKong && !isBing) {
-    const dayFu = !yRiChong && (dRel === '我生' || dRel === '比和') // 日辰生扶
-    const monthFu = mRel === '我生' || mRel === '比和' // 月建生扶
-    const dongFu = chart.lines.some(l => // 他爻發動來生用神（原神動）
-      l.isDong && l.pos !== target.pos && relation(l.sb.element, yEl) === '我生')
-    const kongDong = target.isDong && !isFuShen
     const chuKong = `出空之期在${yBranch}日（值日填實）或${chong(yBranch)}日（沖空則實）`
     let kText: string
-    if (kongDong) {
+    if (yongDong) {
       kText = `用神${yBranch}雖落旬空（${frame.xunKong.join('')}空），然「動不為空」，發動之爻空而有用，事仍在進行，${chuKong}。`
       score -= 0.3
     } else if (yYouQi) {
@@ -515,6 +599,28 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
       })
     }
 
+    // 卦逢六沖／卦變六沖。《增刪卜易》占病門把它與逢空、化空**並列**，
+    // 且用的是同一個語級：近病「不須服藥，即許安痊」、久病「遲者扁鵲難醫」。
+    //   〈占父母病〉：「近病者父爻值旬空，父動化空，**或卦逢六沖，不藥而痊**。
+    //     久病者父爻值旬空月破，父動化空、化破…**卦逢六沖，卦變六沖**…須宜急急求醫」
+    //   〈六沖章第二十〉：「占病者若得六沖卦，近病不藥而愈，**久病妙藥難調**」
+    // 引擎原本只把「用神逢日沖」列為主導條件，漏了「卦逢六沖」這一路——
+    // 而卦格段其實早就把「古云『久病逢沖莫治』」這句話印在報告上了，
+    // 只是沒有接進 decisive：**說了卻不算數**。校準 #10 正是此例
+    // （戌月癸未日占病得乾為天，古人原話「久病逢沖莫治，又是父爻持世，妙藥難醫」）。
+    // 此處只推 decisive、不另計分——沖合的分數已由卦格段獨佔，不可重複。
+    const liuChong = chart.benXing === '六沖' ? '卦逢六沖'
+      : chart.bianXing === '六沖' ? '卦變六沖' : null
+    if (liuChong) {
+      decisive.push({
+        name: jin ? `近病${liuChong}` : `久病${liuChong}`,
+        direction: jin ? 1 : -1,
+        reason: jin
+          ? `《增刪卜易》占病門「${liuChong}，不須服藥，即許安痊」，與近病逢空同列一級`
+          : `《增刪卜易》占病門列「${liuChong}」於久病難治之條，〈六沖章〉更直言「久病妙藥難調」`,
+      })
+    }
+
     // 世爻六親：僅自占病（用神即世爻）時論之——世爻代表病者本身，官鬼持世為病纏其身，
     // 父母持世主憂疑藥不對症。占他人之病時世爻代表問卦者而非病人，此法不適用。
     if (qt.yongShen === '世爻') {
@@ -528,13 +634,22 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
       }
     }
 
+    // 「用神自己就是這一爻嗎」——判定病神／解神是否與用神同體時要問的問題。
+    // 用神為伏神時，用神是 target.fuShen 而不是 target 本身：飛神的六親是**別人的**六親，
+    // 拿它來比會把飛神誤認成用神。原本兩處都寫 `target.liuqin`，於是
+    // 校準 #48（占嫂復病，用神兄弟伏於五爻子水子孫之下）被斷成
+    // 「子孫持世而子孫即用神本身」——用神明明是伏著的申金兄弟。
+    // 同理，`pos` 相同只代表飛神在那一爻，伏神並不是那一爻，故伏神時不以 pos 認同體。
+    const yLiuqin: LiuQin = isFuShen ? target.fuShen!.liuqin : target.liuqin
+    const isTargetLine = (l: LineInfo) => !isFuShen && l.pos === target.pos
+
     // 官鬼為病神（用神本身即官鬼者除外，如妻占夫病，此時官鬼是人不是病）
     if (qt.yongShen !== '官鬼') {
       const guiLine = pickByLiuqin(chart, '官鬼')
       // 自占病而官鬼持世時，人與病本是同一爻——上方「官鬼持世」已就此爻計分。
       // 注意 pickByLiuqin 優先取動爻／旺相而非世爻，卦中若另有官鬼會被選中，
       // 於是同一個「病」被拆到兩爻各算一次，故改以用神自身六親判斷。
-      const guiIsTarget = !!guiLine && (guiLine.pos === target.pos || target.liuqin === '官鬼')
+      const guiIsTarget = !!guiLine && (isTargetLine(guiLine) || yLiuqin === '官鬼')
       if (guiIsTarget) {
         bParts.push('病神官鬼即是用神本身，人與病同居一爻，吉凶已併於上文論之，不另計')
       } else if (!guiLine) {
@@ -556,7 +671,7 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
     if (qt.yongShen !== '子孫') {
       const ziLine = pickByLiuqin(chart, '子孫')
       // 同理：自占病而子孫持世時，醫藥與用神同爻，避免同一爻重複結算
-      const ziIsTarget = !!ziLine && (ziLine.pos === target.pos || target.liuqin === '子孫')
+      const ziIsTarget = !!ziLine && (isTargetLine(ziLine) || yLiuqin === '子孫')
       if (ziIsTarget) {
         bParts.push('子孫持世而子孫即用神本身，解神與己身同居一爻，本主不藥而癒之象')
         score += 1
@@ -623,6 +738,9 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
 
   // 6. 原神／忌神／仇神（六親固定生剋循環：父母生兄弟生子孫生妻財生官鬼生父母）
   // 用神為伏神時關係較複雜，暫不展開此段，避免誤導
+  // `yuanYouLi` 提到外層只為了收進 `yongShenGen`；伏神時整段不跑，故維持 false
+  // （那是「未判定」而非「原神無力」，見 YongShenGen 的註解）。
+  let yuanYouLi = false
   if (!isFuShen) {
     const qLiuqin: LiuQin = qt.yongShen === '世爻' ? target.liuqin : qt.yongShen
     const yuanCat = yuanShenOf(qLiuqin)
@@ -642,7 +760,7 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
     // 野鶴那則自占病的例子正是如此：元神酉金動、忌神未土反生元神，接續相生看似化凶為吉，
     // 但用神亥水月破又被日剋、無根，終究「如樹無根，寒谷不回春」，果卒於癸卯日。
     const genFactor = yYouQi ? 1 : 0.5
-    const yuanYouLi = !!yuanLine && !yuanLine.isDong && yuanShenStrength(yuanLine, frame) === '有力'
+    yuanYouLi = !!yuanLine && !yuanLine.isDong && yuanShenStrength(yuanLine, frame) === '有力'
     const parts: string[] = []
     if (yuanLine) {
       const yuanDesc = `原神${yuanCat}（${posName[yuanLine.pos - 1]}${yuanLine.sb.branch}${yuanLine.sb.element}）`
@@ -1018,10 +1136,19 @@ export function analyzeAt(chart: NajiaChart, frame: TimeFrame, qt: QuestionType,
 
   // 問時機者不出判語。注意判語仍照常算完才丟棄——這樣 intent 就不可能從計分路徑的
   // 任何一步偷偷影響結果，兩種 intent 的 score 與 sections 必然逐字相同。
+  // 用神有根：非月破、非真空，且有氣或得生扶其一。理由與代價見 `YongShenGen`。
+  // 這裡刻意不寫進任何 sections、也不碰 score——欄位化與「拿它來斷」是兩件事，
+  // 後者要有獨立語料的證據才能做。
+  const yongShenGen: YongShenGen = {
+    hasRoot: !zhenKong && !yuePoZhen && (yYouQi || dayFu || monthFu),
+    youQi: yYouQi, yuePo: yYuePo, zhenPo: yuePoZhen, zhenKong,
+    dayFu, monthFu, dongFu, ziDong: yongDong, yuanYouLi,
+  }
+
   return {
     yongShenDesc, yongShenLine: target, isFuShen, score: finalScore,
     intent, verdict: intent === '時機' ? null : verdict,
-    sections, yingQi, decisive,
+    sections, yongShenGen, yingQi, decisive,
   }
 }
 
